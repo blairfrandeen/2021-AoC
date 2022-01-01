@@ -1,9 +1,22 @@
+/* 2021 AoC Day 7
+   https://adventofcode.com/2021/day/7
+    Synopsis: Given array of crab positions,
+    find lowest cost for crabs to move from
+    current positions to a single position.
+    Part 1, cost function is simply sum of distances
+    that each crab has to move
+    Part 2, cost function increases by distance moved
+    c = n*(n+1) / 2
+*/
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include "util.h"
 
-#define MAX_INPUTS 1024
+#define MAX_INPUTS 1024 // Maximum number of positions to evaluate.
+#define MAX_DIGITS 4    // maximum number of digits in data
 
 int split_input(char str[], int input[], char delims[])
 {
@@ -16,16 +29,6 @@ int split_input(char str[], int input[], char delims[])
         num++;
     }
     return num;
-}
-
-void print_array(int array[], int num_elements)
-{
-    int i;
-    printf("[ ");
-    for (i = 0; i < num_elements; i++) {
-        printf("%d ", array[i]);
-    }
-    printf("]\n");
 }
 
 int cost(int inputs[], int *num_inputs, int *position)
@@ -45,60 +48,32 @@ int cost(int inputs[], int *num_inputs, int *position)
     return cost;
 }
 
-int min(int arr[], int *num_elements)
-{
-    int i;
-    int min = arr[0];
-    for (i = 1; i < *num_elements; i++) {
-        if (arr[i] < min)
-            min = arr[i];
-    }
-    return min;
-}
-
-int max(int arr[], int *num_elements)
-{
-    int i;
-    int max = arr[0];
-    for (i = 1; i < *num_elements; i++) {
-        if (arr[i] > max)
-            max = arr[i];
-    }
-    return max;
-}
-
-int sum(int arr[], int *num_elements)
-{
-    int i;
-    int sum = 0;
-    for (i = 0; i < *num_elements; i++) {
-        sum += arr[i];
-    }
-    return sum;
-}
-
-int range(int arr[], int *num_elements)
-{
-    return (max(arr, num_elements) - min(arr, num_elements));
-}
-
-int mean(int arr[], int *num_elements)
-{
-    return(sum(arr, num_elements) / *num_elements);
-}
-
 int main(int argc, char *argv[])
 {
-    char test[] = "16,1,2,0,4,2,7,1,2,14";
     int *input = malloc(MAX_INPUTS * sizeof(int));
-    FILE *data = fopen("7data", "r");
-    char buffer[4096];
-    fgets(buffer, sizeof(buffer), data);
-    int num_inputs = split_input(buffer, input, ",");
+    int num_inputs;
+
+    if (argc > 1 && *argv[1] == 't') {
+        // test case input
+        printf("Test Mode\n");
+        char test[] = "16,1,2,0,4,2,7,1,2,14";
+        num_inputs = split_input(test, input, ",");
+    } else {
+        FILE *data = fopen("7data", "r");
+        assert(data != NULL);
+
+        // set the buffer size to be the maximum number
+        // of positions times the max digits per position
+        // plus additional char for ',' between positions
+        char buffer[MAX_INPUTS * (MAX_DIGITS + 1)];
+
+        fgets(buffer, sizeof(buffer), data);
+        num_inputs = split_input(buffer, input, ",");
+    }
     // print_array(input, num_inputs);
     printf("num elements: %d\n", num_inputs);
-    printf("min: %d\n", min(input, &num_inputs));
-    printf("max: %d\n", max(input, &num_inputs));
+    printf("min: %d\n", *min(input, &num_inputs));
+    printf("max: %d\n", *max(input, &num_inputs));
     printf("range: %d\n", range(input, &num_inputs));
     printf("sum: %d\n", sum(input, &num_inputs));
     printf("mean: %d\n", mean(input, &num_inputs));
@@ -117,20 +92,20 @@ int main(int argc, char *argv[])
     }
 
     //print_array(cur_cost, num_inputs);
-    printf("Minimum cost: %d\n", min(cur_cost, &num_costs));
+    // printf("Minimum cost: %d\n", min(cur_cost, &num_costs));
 
     printf("-------\nDone right:\n");
     int position = mean(input, &num_inputs);
     int grad = -1;
-    int delta = (position - min(input, &num_inputs)) / 2;
+    // int delta = (position - min(input, &num_inputs)) / 2;
 
     // reset cost array
-    memset(cur_cost, -1, sizeof(int));
-    int num_costs = 0;
-    while (grad < 0) {
-        cur_cost[num_costs] = cost(input, &num_inputs, &position);
-        num_costs++;
-    }
+    /*memset(cur_cost, -1, sizeof(int));*/
+    /*num_costs = 0;*/
+    /*while (grad < 0) {*/
+        /*cur_cost[num_costs] = cost(input, &num_inputs, &position);*/
+        /*num_costs++;*/
+    /*}*/
 
     return 0;
 }
