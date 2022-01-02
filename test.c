@@ -84,6 +84,9 @@ int main(int argc, char *argv[])
     CreateTest(*max(test_arr_3, &n1), 1024);
     CreateTest(*max(test_arr_4, &n1), 3437);
 
+    CreateTest(is_in(0, test_arr_2, &n1), 1);
+    CreateTest(is_in(1777, test_arr_2, &n1), 0);
+
     Tests_run(tests, &num_tests);
 }
 

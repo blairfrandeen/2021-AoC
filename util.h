@@ -6,13 +6,13 @@ typedef enum {
     NULL_POINTER_ERROR
 } ErrorType;
 
-int is_in(int element, int array[], int arr_size) 
+int is_in(int element, int *array, int *arr_size) 
 {
-    int i;
-    for (i = 0; i < arr_size; i++) {
-        if (array[i] == element) {
+    for (int i = 0; i < *arr_size; i++) {
+        if (*array == element) {
             return 1;
         }
+        array++;
     }
     return 0;
 }
@@ -80,7 +80,7 @@ int range(int *arr, int *num_elements)
     return (*max(arr, num_elements) - *min(arr, num_elements));
 }
 
-int mean(int arr[], int *num_elements)
+int mean(int *arr, int *num_elements)
 {
-    return(sum(arr, num_elements) / *num_elements);
+    return (sum(arr, num_elements) / *num_elements);
 }
