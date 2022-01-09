@@ -1,3 +1,4 @@
+/* Synopsis: 7-segment display has all the wires crossed, and we need to uncross them. */
 #include <stdio.h>
 #include "util.h"
 #include <stdlib.h>
@@ -112,13 +113,15 @@ int part_1(char datafile[])
     int nums_to_count[4] = { 2, 3, 4, 7 };
     while(fgets(buffer, sizeof(buffer), data) != NULL) {
         find_lengths(find_char(buffer, '|') + 1, lengths, NUM_DIGITS, ' ');
-        print_array(lengths, NUM_DIGITS);
+        // print_array(lengths, NUM_DIGITS);
         for (int i = 0; i < NUM_DIGITS; i++) {
             if (is_in(lengths[i], nums_to_count, NUM_DIGITS))
                 count++;
         }
     }
 
+    free(lengths);
+    lengths = NULL;
     fclose(data);
     return count;
 }
@@ -212,8 +215,10 @@ int main(int argc, char *argv[])
     // number of segments corresponding to 7-segment display:
     // int num_segments[] = { 6, 2, 5, 5, 4, 5, 6, 3, 7, 6 };
     // int numbers       = {  0  1  2  3  4  5  6  7  8  9 };
-    printf("Total count for Part I: %d\n", part_1("8test"));
-    printf("Total sum for Part II: %d\n", part_2("8test"));
+    printf("Total count for Part I: %d\n", part_1("8data"));
+
+    // not yet working:
+    /*printf("Total sum for Part II: %d\n", part_2("8test"));*/
 
 
     return 0;

@@ -18,34 +18,38 @@
 #define MAX_INPUTS 1024 // Maximum number of positions to evaluate.
 #define MAX_DIGITS 4    // maximum number of digits in data
 
-int split_input(char str[], int input[], char delims[])
+int cost_fcn_p1(int dist)
 {
-    int num = 0;
-    char *ptr = strtok(str, delims);
-    while(ptr != NULL) {
-        input[num] = atoi(ptr);
-        assert(input[num] >= 0);
-        ptr = strtok(NULL, delims);
-        num++;
-    }
-    return num;
+    return dist;
 }
 
-int cost(int inputs[], int *num_inputs, int *position)
+int cost_fcn_p2(int dist)
 {
-    int i;
-    int cost = 0;
-    int dist;
-    for (i = 0; i < *num_inputs; i++) {
-        dist = abs(inputs[i] - *position);
-        // part 1 cost function:
-        // cost += dist;
+    // part 2 cost function is sum of first n integers
+    return (dist * (dist + 1) / 2);
+}
 
-        // part 2 cost function is sum of first n integers
-        cost += (dist * (dist + 1) / 2);
+int find_min_cost(int (*cost_function)(int), int *inputs, int num_inputs)
+{
+    int rng = range(inputs, &num_inputs);
+    int cost[rng];
+    // this is brute force method
+
+    // loop through all possible positions
+    // start at minimum position of all inputs
+    int dist;
+    int pos = *min(inputs, &num_inputs);
+    for (int p = 0; p <= rng; p++) {
+        cost[p] = 0;
+        // loop through all inputs
+        for (int i = 0; i < num_inputs; i++) {
+            dist = abs(inputs[i] - pos);
+            cost[p] += cost_function(dist);
+        }
+        pos++; 
     }
 
-    return cost;
+    return *min(cost, &num_inputs);
 }
 
 int main(int argc, char *argv[])
@@ -72,40 +76,21 @@ int main(int argc, char *argv[])
     }
     // print_array(input, num_inputs);
     printf("num elements: %d\n", num_inputs);
-    printf("min: %d\n", *min(input, &num_inputs));
-    printf("max: %d\n", *max(input, &num_inputs));
-    printf("range: %d\n", range(input, &num_inputs));
-    printf("sum: %d\n", sum(input, &num_inputs));
-    printf("mean: %d\n", mean(input, &num_inputs));
 
-    // fuck it, start w/ brute force
     // int position = min(input, &num_inputs);
     int num_costs = range(input, &num_inputs);
-    printf("Brute force style: \n");
     printf("Number of cost functions evaluated: %d\n", num_costs);
 
-    // evaluate cost function at first guess
-    int cur_cost[num_costs];
-    int i;
-    for (i = 0; i < num_costs; i++) {
-        cur_cost[i] = cost(input, &num_inputs, &i);
-    }
+    // some practice for function pointers
+    int (*cost_function)(int) = NULL;
 
-    //print_array(cur_cost, num_inputs);
-    // printf("Minimum cost: %d\n", min(cur_cost, &num_costs));
+    cost_function = cost_fcn_p1;
+    printf("Cost for Part 1: %d\n",
+            find_min_cost(cost_function, input, num_inputs));
 
-    printf("-------\nDone right:\n");
-    int position = mean(input, &num_inputs);
-    int grad = -1;
-    // int delta = (position - min(input, &num_inputs)) / 2;
-
-    // reset cost array
-    /*memset(cur_cost, -1, sizeof(int));*/
-    /*num_costs = 0;*/
-    /*while (grad < 0) {*/
-        /*cur_cost[num_costs] = cost(input, &num_inputs, &position);*/
-        /*num_costs++;*/
-    /*}*/
+    cost_function = cost_fcn_p2;
+    printf("Cost for Part 2: %d\n",
+            find_min_cost(cost_function, input, num_inputs));
 
     return 0;
 }
