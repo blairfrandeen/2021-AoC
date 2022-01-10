@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include "util.h"
 #include <stdlib.h>
+#include <string.h>
 
 #define NUM_SEGMENTS 7
 #define NUM_WORDS 15 /* 15 total words, including "|" */
@@ -68,20 +69,6 @@
 
 */
 
-// return a pointer to the first instance of target within str
-char *find_char(char *str, char target)
-{
-    char *c = str;
-    if (*c == target)
-        return c;
-    while (*c != target && *c != '\0') {
-        c++;
-        if (*c == target)
-            return c;
-    }
-    return NULL;
-}
-
 int words_equal(char *w1, char *w2, int n) 
 {
     int match_count = 0;
@@ -103,27 +90,11 @@ void find_lengths(char *str, int *lengths)
                 str++;
                 break;
             }
-//            printf("%c", *str);
+            // printf("%c", *str);
             lengths[i]++;
             str++;
         }
-//        printf("\n");
-    }
-}
-
-void split_str(char *str, char *splits[], char delim)
-{
-    int i = 0;
-    while(*str != '\0') {
-        if (*str == delim) {
-            str++;
-            splits++;
-            i = 0;
-            continue;
-        }
-        *splits[i] = *str;
-        str++;
-        i++;
+        // printf("\n");
     }
 }
 
@@ -144,15 +115,6 @@ void print_words(char *words[], int *lengths, int n)
     printf("\n");
 }
 
-int all_segments_found(char *segments)
-{
-    for (int i = 0; i < NUM_SEGMENTS; i++) {
-        if (segments[i] == '\0')
-            return 0;
-    }
-    return 1;
-}
-
 int all_words_found(char *words[])
 {
     for (int i = 0; i < NUM_INPUTS; i++) {
@@ -162,17 +124,18 @@ int all_words_found(char *words[])
     return 1;
 }
 
-int decode(char *str, int *lengths, char *words[], char *segments)
+int decode(char *str, int *lengths, char *words[])
 {    
     // loop through first 10 words in str
     // we already know the length of each word
-    int pos; // position in *str
     char *word; // current word
-    char *str_tmp;
-    while(/*!all_segments_found(segments) ||*/ !all_words_found(words)) {
-        pos = 0;
+    char *str_tmp; // our position in the input string
+    char segments[NUM_SEGMENTS];
+    memset(segments, '\0', NUM_SEGMENTS * sizeof(char));
+
+    while(!all_words_found(words)) {
         str_tmp = str;
-        for (int i = 0; i < NUM_WORDS; i++) { //// only decode words before bar
+        for (int i = 0; i < NUM_WORDS; i++) { 
             word = malloc(lengths[i] * sizeof(char*));
             for (int w = 0; w < lengths[i]; w++) {
                 word[w] = *str_tmp++;
@@ -300,8 +263,6 @@ int decode(char *str, int *lengths, char *words[], char *segments)
 
             if (i >= NUM_INPUTS)
                 words[i] = (char *)word;
-            // next position in *str is length of last word +1 for space
-            pos += lengths[i];
             word = NULL;
             free(word);
         }
@@ -312,7 +273,10 @@ int decode(char *str, int *lengths, char *words[], char *segments)
     return 0;
 }
 
-int pwr(int x, int y) {
+int pwr(int x, int y)
+{
+// raise int x to the power of y
+// good candidate for util.h
     for (int i = 0; i < y; i++)
         x *= 10;
     return x;
@@ -332,25 +296,25 @@ int find_duplicates(char *words[], int *num_segments)
     }
     return dupes;
 }
+
 int main(int argc, char *argv[])
 {
     // number of segments corresponding to 7-segment display:
-    int num_segments[] = { 6, 2, 5, 5, 4, 5, 6, 3, 7, 6 };
-    // int numbers       = {  0  1  2  3  4  5  6  7  8  9 };
+    int num_segments[] =       { 6, 2, 5, 5, 4, 5, 6, 3, 7, 6 };
+    // corresponding digits:= {  0  1  2  3  4  5  6  7  8  9 };
     char datafile[] = "8data";
+    if (argc > 1 && *argv[1] == 't') {
+        printf("Test Mode!\n");
+        strcpy(datafile, "8test");
+    }
     FILE *data = fopen(datafile, "r");
     char buffer[MAX_LEN];
-
 
     // lengths of words, in order of appearance
     int *lengths = malloc(NUM_WORDS * sizeof(int));
 
     // words, to be ordered by number value
     char **words = NULL;
-
-    // segments, to be ordered by standard 7-segment definition
-    char segments[NUM_SEGMENTS];
-    memset(segments, '\0', NUM_SEGMENTS * sizeof(char));
 
     int nums_to_count[NUM_OUTPUTS] = { 2, 3, 4, 7 };
     int part_1_count = 0;
@@ -360,33 +324,26 @@ int main(int argc, char *argv[])
         find_lengths(buffer, lengths);
         // print_array(lengths, NUM_WORDS);
 
-        decode(buffer, lengths, words, segments);
+        decode(buffer, lengths, words);
         if (find_duplicates(words, num_segments)) {
             print_words(words, lengths, NUM_WORDS);
             printf("%s", buffer);
         }
 
-        // part 1 solution
         int power = 0;
         for (int i = NUM_INPUTS + 1; i < NUM_WORDS; i++) { // start after |
-            power = NUM_WORDS - i - 1;
+            // part 1 solution
             if (is_in(lengths[i], nums_to_count, NUM_OUTPUTS))
                 part_1_count++;
             for (int j = 0; j < NUM_INPUTS; j++) {
                 if (lengths[i] == num_segments[j] && words_equal(words[j], words[i], lengths[i])) {
+                    power = NUM_WORDS - i - 1;
                     //printf("%s =? %s\n", words[i], words[j]);
                     part_2_sum += pwr(j, power);
                     // printf("%d * 10^%d = %d\n",j,power,pwr(j,power));
                 }
             }
         }
-        // clear segments
-        //printf("Segments found: ");
-        for (int i = 0; i < NUM_SEGMENTS; i++) {
-        //    printf("%c", segments[i] == '\0' ? '_' : segments[i]);
-            segments[i] = '\0';
-        }
-        //printf("\n");
         // clear words
         for (int i = 0; i < NUM_INPUTS; i++) {
             words[i] = NULL;
@@ -403,47 +360,3 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-
-/*void tests() */
-/*{*/
-    /*char *test_str = "be cfbegad cbdgef fgaecd cgeb fdcge agebfd fecdb fabcd edb | fdgacbe cefdb cefbgd gcbe";*/
-    /*char *bar = find_char(test_str, '|');*/
-    /*int num_chars = bar - test_str;*/
-    /*if (bar != NULL) {*/
-        /*printf("The bar was found at %p, value %c, %d chars from start.\n", &bar, *bar, num_chars);*/
-    /*} else {*/
-        /*printf("The character was not found.\n");*/
-    /*}*/
-
-    /*int *lengths = malloc(NUM_WORDS * sizeof(int));*/
-    /*find_lengths(bar, lengths);*/
-    /*// print_array(lengths, NUM_DIGITS);*/
-
-    /*char *w1 = "abcdf";*/
-    /*char *w2 = "bed";*/
-    /*printf("%s and %s are equal: %d\n", w1, w2, words_equal(w1, w2, 6));*/
-/*}*/
-
-/*int part_2(char datafile[]) */
-/*{*/
-    /*// get the data*/
-    /*FILE *data = fopen(datafile, "r");*/
-    /*char buffer[MAX_LEN];*/
-
-    /*int sum = 0;*/
-    /*int lengths[NUM_INPUTS];*/
-    /*int nums[NUM_INPUTS];*/
-    /*char *splits = malloc(sizeof(char) * NUM_INPUTS * NUM_SEGMENTS);*/
-    /*while(fgets(buffer, sizeof(buffer), data) != NULL) {*/
-        /*find_lengths(buffer, lengths, NUM_INPUTS, ' ');*/
-        /*print_array(lengths, NUM_INPUTS);*/
-        /*sum += decode(buffer, lengths, nums);*/
-        /*print_array(nums, NUM_INPUTS);*/
-        /*split_str(buffer, &splits, ' ');*/
-        /*//printf("%s\n", *splits[1]);*/
-
-    /*}*/
-
-    /*fclose(data);*/
-    /*return sum;*/
-/*}*/
