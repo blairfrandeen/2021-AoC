@@ -16,6 +16,7 @@
 #define NUM_SEGMENTS 7
 #define NUM_WORDS 15 /* 15 total words, including "|" */
 #define NUM_INPUTS 10
+#define NUM_OUTPUTS 4
 #define MAX_LEN 256
 
 /* Part I Plan:
@@ -98,7 +99,7 @@ void find_lengths(char *str, int *lengths)
     for (int i = 0; i < NUM_WORDS; i++) {
         lengths[i] = 0;
         while(*str != '\0') {
-            if (*str == ' ' || *(str) == '\n') {
+            if (*str == ' ' || *str == '\n') {
                 str++;
                 break;
             }
@@ -171,7 +172,7 @@ int decode(char *str, int *lengths, char *words[], char *segments)
     while(/*!all_segments_found(segments) ||*/ !all_words_found(words)) {
         pos = 0;
         str_tmp = str;
-        for (int i = 0; i < 10; i++) { // only decode words before bar
+        for (int i = 0; i < NUM_WORDS; i++) { //// only decode words before bar
             word = malloc(lengths[i] * sizeof(char*));
             for (int w = 0; w < lengths[i]; w++) {
                 word[w] = *str_tmp++;
@@ -222,10 +223,10 @@ int decode(char *str, int *lengths, char *words[], char *segments)
                                 }
                             }
                             //  -> segments[6] = character in words[4] that is not segments[5]
-                                // and not in words[1]
                             for (int j = 0; j < 4; j++) {
                                 if (in(words[4][j], word, lengths[i]) && segments[5] != words[4][j]
                                         && segments[6] == '\0') {
+                                    // and not in words[1]
                                     if (!in(words[4][j], words[1], 2)) {
                                         segments[6] = words[4][j];
                                         break;
@@ -236,8 +237,8 @@ int decode(char *str, int *lengths, char *words[], char *segments)
                         }
                     }
 
-                    // if word includes segments[5] and [6] but not all of words[1] -> 5
-                    if (segments[5] != '\0' && segments[6] != '\0') {
+                    // if word includes segments[5] and [6] -> 5
+                    if (segments[5] != '\0' && segments[6] != '\0' && sol == -1) {
                         if (in(segments[5], word, lengths[i]) && in(segments[6], word, lengths[i])) {
                             words[5] = (char *)word;
                             //  -> segments[2] = character not in word(5) that is in words[1]
@@ -276,16 +277,17 @@ int decode(char *str, int *lengths, char *words[], char *segments)
                             }
                         }
                     }
-                    
                     break;
                 case 6: // number is 6, 9, or 0
                     // if all segments but last filled -> 0
-                    if (!in(segments[6], word, lengths[i])) {
-                        words[0] = (char *)word;
-                    } else if (!in(segments[1], word, lengths[i])) {
-                        words[6] = (char *)word;
-                    } else {
-                        words[9] = (char *)word;
+                    if (segments[6] != '\0' && segments[1] != '\0') {
+                        if (!in(segments[6], word, lengths[i])) {
+                            words[0] = (char *)word;
+                        } else if (!in(segments[1], word, lengths[i])) {
+                            words[6] = (char *)word;
+                        } else {
+                            words[9] = (char *)word;
+                        }
                     }
                     //  -> segments[3] = character not in 4 or 7
                     // if word includes all of 7 but not all of 4 -> 0
@@ -295,6 +297,9 @@ int decode(char *str, int *lengths, char *words[], char *segments)
                 default:
                     ;// outputs[i] = -1;
             }
+
+            if (i >= NUM_INPUTS)
+                words[i] = (char *)word;
             // next position in *str is length of last word +1 for space
             pos += lengths[i];
             word = NULL;
@@ -307,10 +312,30 @@ int decode(char *str, int *lengths, char *words[], char *segments)
     return 0;
 }
 
+int pwr(int x, int y) {
+    for (int i = 0; i < y; i++)
+        x *= 10;
+    return x;
+}
+
+int find_duplicates(char *words[], int *num_segments)
+{
+    int dupes = 0;
+    for (int i = 0; i < NUM_INPUTS; i++) {
+        for (int j = 0; j < NUM_INPUTS; j++) {
+            if (i != j && words_equal(words[i], words[j], num_segments[i])
+                    && num_segments[i] == num_segments[j]) {
+                printf("Ya done fucked up bro.\n");
+                dupes = 1;
+            }
+        }
+    }
+    return dupes;
+}
 int main(int argc, char *argv[])
 {
     // number of segments corresponding to 7-segment display:
-    // int num_segments[] = { 6, 2, 5, 5, 4, 5, 6, 3, 7, 6 };
+    int num_segments[] = { 6, 2, 5, 5, 4, 5, 6, 3, 7, 6 };
     // int numbers       = {  0  1  2  3  4  5  6  7  8  9 };
     char datafile[] = "8data";
     FILE *data = fopen(datafile, "r");
@@ -327,28 +352,41 @@ int main(int argc, char *argv[])
     char segments[NUM_SEGMENTS];
     memset(segments, '\0', NUM_SEGMENTS * sizeof(char));
 
-    int nums_to_count[4] = { 2, 3, 4, 7 };
+    int nums_to_count[NUM_OUTPUTS] = { 2, 3, 4, 7 };
     int part_1_count = 0;
+    int part_2_sum = 0;
     while(fgets(buffer, sizeof(buffer), data) != NULL) {
-        words = malloc(NUM_INPUTS * sizeof(char *));
+        words = malloc(NUM_WORDS * sizeof(char *));
         find_lengths(buffer, lengths);
         // print_array(lengths, NUM_WORDS);
 
         decode(buffer, lengths, words, segments);
-        print_words(words, lengths, NUM_INPUTS);
+        if (find_duplicates(words, num_segments)) {
+            print_words(words, lengths, NUM_WORDS);
+            printf("%s", buffer);
+        }
 
         // part 1 solution
-        for (int i = NUM_INPUTS; i < NUM_WORDS; i++) { // start after |
-            if (is_in(lengths[i], nums_to_count, NUM_WORDS))
+        int power = 0;
+        for (int i = NUM_INPUTS + 1; i < NUM_WORDS; i++) { // start after |
+            power = NUM_WORDS - i - 1;
+            if (is_in(lengths[i], nums_to_count, NUM_OUTPUTS))
                 part_1_count++;
+            for (int j = 0; j < NUM_INPUTS; j++) {
+                if (lengths[i] == num_segments[j] && words_equal(words[j], words[i], lengths[i])) {
+                    //printf("%s =? %s\n", words[i], words[j]);
+                    part_2_sum += pwr(j, power);
+                    // printf("%d * 10^%d = %d\n",j,power,pwr(j,power));
+                }
+            }
         }
         // clear segments
-        printf("Segments found: ");
+        //printf("Segments found: ");
         for (int i = 0; i < NUM_SEGMENTS; i++) {
-            printf("%c", segments[i] == '\0' ? '_' : segments[i]);
+        //    printf("%c", segments[i] == '\0' ? '_' : segments[i]);
             segments[i] = '\0';
         }
-        printf("\n");
+        //printf("\n");
         // clear words
         for (int i = 0; i < NUM_INPUTS; i++) {
             words[i] = NULL;
@@ -360,8 +398,7 @@ int main(int argc, char *argv[])
 
     printf("Total count for Part I: %d\n", part_1_count);
 
-    // not yet working:
-    /*printf("Total sum for Part II: %d\n", part_2("8data"));*/
+    printf("Total sum for Part II: %d\n", part_2_sum);
 
 
     return 0;
