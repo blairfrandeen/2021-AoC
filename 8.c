@@ -100,6 +100,8 @@ void find_lengths(char *str, int *lengths)
 
 int in(char letter, char *word, int n)
 {
+    if (word == NULL)
+        return 0;
     for (int i = 0; i < n; i++) {
         if (letter == *(word + i))
             return 1;
@@ -124,7 +126,20 @@ int all_words_found(char *words[])
     return 1;
 }
 
-int decode(char *str, int *lengths, char *words[])
+// return the first segment FROM a string 
+// of length l_f that is NOT_IN another string of length l_n
+char *segment_missing_from(char **from, int l_f, char **not_in, int l_n)
+{
+    if (from == NULL || not_in == NULL)
+        return '\0';
+    for (int i = 0; i < l_f; i++) {
+        if (!in(*from[i], (char *)not_in, l_n))
+            return from[i];
+    }
+    return '\0';
+}
+
+int decode(char *str, int *lengths, char **words)
 {    
     // loop through first 10 words in str
     // we already know the length of each word
@@ -136,29 +151,31 @@ int decode(char *str, int *lengths, char *words[])
     while(!all_words_found(words)) {
         str_tmp = str;
         for (int i = 0; i < NUM_WORDS; i++) { 
-            word = malloc(lengths[i] * sizeof(char*));
-            for (int w = 0; w < lengths[i]; w++) {
+            int len = lengths[i]; // refactor for easier to read code
+
+            // assign the word to be analyzed
+            word = malloc(len * sizeof(char*));
+            memset(word, '\0', len * sizeof(char));
+            for (int w = 0; w < len; w++) 
                 word[w] = *str_tmp++;
-            }
-            //skip the space
-            str_tmp++;
-            // printf("%s\n", (char *)word);
-            int sol = -1;
-            switch (lengths[i]) {
+
+            int sol = -1; // needed for logic of case 5
+            switch (len) {
                 case 2: // number is 1
                     words[1] = (char *)word;
                     break;
                 case 3: // number is 7
                     words[7] = (char *)word;
                     // segments[0] = character in 7 that is not in 1
-                    if (words[1] != NULL && segments[0] == '\0') {
-                        for (int j = 0; j < 3; j++) {
-                            if (!(in(words[7][j], words[1], 3))) {
-                                segments[0] = words[7][j];
-                                break;
-                            }
-                        }
-                    }
+                    segments[0] = *segment_missing_from(&words[7], 3, &words[1], 2);
+                    /*if (words[1] != NULL && segments[0] == '\0') {*/
+                        /*for (int j = 0; j < 3; j++) {*/
+                            /*if (!(in(words[7][j], words[1], 3))) {*/
+                                /*segments[0] = words[7][j];*/
+                                /*break;*/
+                            /*}*/
+                        /*}*/
+                    /*}*/
                     break;
                 case 4: // number is 4
                     words[4] = (char *)word;
@@ -171,7 +188,7 @@ int decode(char *str, int *lengths, char *words[])
                     if (words[1] != NULL && words[4] != NULL) {
                         sol = 1;
                         for (int j = 0; j < 2; j++) {
-                            if (!in(words[1][j], word, lengths[i])) {
+                            if (!in(words[1][j], word, len)) {
                                 sol = -1;
                                 break; 
                             }
@@ -180,14 +197,14 @@ int decode(char *str, int *lengths, char *words[])
                             words[3] = (char *)word;
                             //  -> segments[5] = character in words[4] that is not in word(3)
                             for (int j = 0; j < 4; j++) {
-                                if (!in(words[4][j], word, lengths[i]) && segments[5] == '\0') {
+                                if (!in(words[4][j], word, len) && segments[5] == '\0') {
                                     segments[5] = words[4][j];
                                     break;
                                 }
                             }
                             //  -> segments[6] = character in words[4] that is not segments[5]
                             for (int j = 0; j < 4; j++) {
-                                if (in(words[4][j], word, lengths[i]) && segments[5] != words[4][j]
+                                if (in(words[4][j], word, len) && segments[5] != words[4][j]
                                         && segments[6] == '\0') {
                                     // and not in words[1]
                                     if (!in(words[4][j], words[1], 2)) {
@@ -202,11 +219,11 @@ int decode(char *str, int *lengths, char *words[])
 
                     // if word includes segments[5] and [6] -> 5
                     if (segments[5] != '\0' && segments[6] != '\0' && sol == -1) {
-                        if (in(segments[5], word, lengths[i]) && in(segments[6], word, lengths[i])) {
+                        if (in(segments[5], word, len) && in(segments[6], word, len)) {
                             words[5] = (char *)word;
                             //  -> segments[2] = character not in word(5) that is in words[1]
                             for (int j = 0; j < 2; j++) {
-                                if(!in(words[1][j], word, lengths[i]) && segments[1] == '\0') {
+                                if(!in(words[1][j], word, len) && segments[1] == '\0') {
                                     segments[1] = words[1][j];
                                     //  -> segments[1] = character in words[1] that is not segments[2]
                                     if (j == 0) {
@@ -222,8 +239,8 @@ int decode(char *str, int *lengths, char *words[])
                             //  -> segments[4] = character in word(2) that is not in words[5] and not segments[1]
                             if (words[7] == NULL || words[5] == NULL || segments[1] == '\0')
                                 break;
-                            for (int j = 0; j < lengths[i]; j++) {
-                                if(!in(words[2][j], words[5], lengths[i]) && words[2][j] != segments[1]
+                            for (int j = 0; j < len; j++) {
+                                if(!in(words[2][j], words[5], len) && words[2][j] != segments[1]
                                         && segments[4] == '\0') {
                                     segments[4] = (char)word[j];
                                     break;
@@ -231,8 +248,8 @@ int decode(char *str, int *lengths, char *words[])
                             }
                             //  -> segments[3] = character in word(2) that is not in words[4] and words[7] and
                             //      is not segments[4]
-                            for (int j = 0; j < lengths[i]; j++) {
-                                if(!in(word[j], words[4], lengths[i]) && !in(word[j], words[7], lengths[i])
+                            for (int j = 0; j < len; j++) {
+                                if(!in(word[j], words[4], len) && !in(word[j], words[7], len)
                                         && word[j] != segments[4]) {
                                     segments[3] = word[j];
                                     break;
@@ -242,30 +259,36 @@ int decode(char *str, int *lengths, char *words[])
                     }
                     break;
                 case 6: // number is 6, 9, or 0
-                    // if all segments but last filled -> 0
+                    // check that we have all information to execute conditional statement
                     if (segments[6] != '\0' && segments[1] != '\0') {
-                        if (!in(segments[6], word, lengths[i])) {
+                        // if all segments but last filled -> 0
+                        if (!in(segments[6], word, len)) {
                             words[0] = (char *)word;
-                        } else if (!in(segments[1], word, lengths[i])) {
+                        // if 6 segments but doesn't include all of 1 -> 9
+                        } else if (!in(segments[1], word, len)) {
                             words[6] = (char *)word;
                         } else {
                             words[9] = (char *)word;
                         }
                     }
-                    //  -> segments[3] = character not in 4 or 7
-                    // if word includes all of 7 but not all of 4 -> 0
-                    //  -> number is 0
-                    //  -> segments[6] = character
                     break;
                 default:
-                    ;// outputs[i] = -1;
+                    ; // do nothing
             }
 
+            // assign the last 4 words as they are given
             if (i >= NUM_INPUTS)
                 words[i] = (char *)word;
+
+            // cleanup
             word = NULL;
             free(word);
+
+            // advance the pointer past the space
+            str_tmp++;
         }
+
+        // handy debug for printing the segments that have been found
         /*for (int i = 0; i < NUM_SEGMENTS; i++) */
             /*printf("%c", segments[i] == '\0' ? '_' : segments[i]);*/
         /*printf("\n");*/
@@ -287,9 +310,9 @@ int find_duplicates(char *words[], int *num_segments)
     int dupes = 0;
     for (int i = 0; i < NUM_INPUTS; i++) {
         for (int j = 0; j < NUM_INPUTS; j++) {
-            if (i != j && words_equal(words[i], words[j], num_segments[i])
-                    && num_segments[i] == num_segments[j]) {
-                printf("Ya done fucked up bro.\n");
+            if (num_segments[i] == num_segments[j] && i != j
+                    && words_equal(words[i], words[j], num_segments[i])) {
+                printf("ERROR: Duplicate word found.\n");
                 dupes = 1;
             }
         }
@@ -321,6 +344,7 @@ int main(int argc, char *argv[])
     int part_2_sum = 0;
     while(fgets(buffer, sizeof(buffer), data) != NULL) {
         words = malloc(NUM_WORDS * sizeof(char *));
+        memset(words, 0, NUM_WORDS * sizeof(char *));
         find_lengths(buffer, lengths);
         // print_array(lengths, NUM_WORDS);
 
@@ -344,19 +368,22 @@ int main(int argc, char *argv[])
                 }
             }
         }
-        // clear words
-        for (int i = 0; i < NUM_INPUTS; i++) {
-            words[i] = NULL;
-            free(words[i]);
-        }
-        words = NULL;
-        free(words);
     }
+    // clear words
+    /*for (int i = 0; i < NUM_WORDS; i++) {*/
+        /*words[i] = NULL;*/
+        /*free(words[i]);*/
+    /*}*/
+    words = NULL;
+    free(words);
 
     printf("Total count for Part I: %d\n", part_1_count);
 
     printf("Total sum for Part II: %d\n", part_2_sum);
 
+    // clean up
+    lengths = NULL;
+    free(lengths);
 
     return 0;
 }
