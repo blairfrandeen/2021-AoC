@@ -69,6 +69,14 @@
 
 */
 
+/**
+  * Determine if two words of length n are
+  * comprised of the same letters, regardless of the order
+  *
+  * @param  w1      pointer to the first word
+  * @param  w2      pointer to the second word
+  * @param n        number of characters to search
+  */
 int words_equal(char *w1, char *w2, int n) 
 {
     int match_count = 0;
@@ -81,6 +89,13 @@ int words_equal(char *w1, char *w2, int n)
     return (match_count == n);
 }
 
+/** 
+  * Find the lengths of the words in a string
+  *
+  * @param  str         pointer to the string to search
+  * @param  lengths     pointer to the int array that we populate
+  *                     with lengths found
+  */
 void find_lengths(char *str, int *lengths)
 {
     for (int i = 0; i < NUM_WORDS; i++) {
@@ -98,6 +113,15 @@ void find_lengths(char *str, int *lengths)
     }
 }
 
+/**
+  * Determine whether a letter is in a word
+  *
+  * @param      letter      letter we are looking for
+  * @param      word        pointer to word to search
+  * @param      n           length of word
+  * @retval     1           letter is in word
+  * @retval     0           letter is not in word
+  */
 int in(char letter, char *word, int n)
 {
     if (word == NULL)
@@ -109,6 +133,13 @@ int in(char letter, char *word, int n)
     return 0;
 }
 
+/**
+  * Print a set of words (debug function)
+  * 
+  * @param  words       string of words to print
+  * @param  lengths     lengths of words
+  * @param  n           number of words to print
+  */
 void print_words(char *words[], int *lengths, int n)
 {
     for (int i = 0; i < n; i++) {
@@ -117,10 +148,17 @@ void print_words(char *words[], int *lengths, int n)
     printf("\n");
 }
 
-int all_words_found(char *words[])
+/**
+  * Determine whether all digits have been found
+  *
+  * @param      digits      array of digits
+  * @retval     0           not found (at least one is NULL)
+  * @retval     1           all found
+  */
+int all_digits_found(char *digits[])
 {
     for (int i = 0; i < NUM_INPUTS; i++) {
-        if ((char *)words[i] == NULL)
+        if ((char *)digits[i] == NULL)
             return 0;
     }
     return 1;
@@ -128,6 +166,16 @@ int all_words_found(char *words[])
 
 // return the first segment FROM a string 
 // of length l_f that is NOT_IN another string of length l_n
+/**
+  * Return the first segment from a string that is not present
+  * in another string
+  * 
+  * @param      from        string that has additional segment
+  * @param      l_f         length of from
+  * @param      not_in      string to search
+  * @param      l_n         length of string to search
+  * @retval     '\0'        no unique character found
+  */
 char *segment_missing_from(char **from, int l_f, char **not_in, int l_n)
 {
     if (from == NULL || not_in == NULL)
@@ -139,6 +187,18 @@ char *segment_missing_from(char **from, int l_f, char **not_in, int l_n)
     return '\0';
 }
 
+/**
+  * Given an encoded string, find the digit corresponding
+  * to each word
+  *
+  * @param      str         string to search
+  * @param      lengths     lengths of words in string
+  * @param      words       array of strings to populate once decoded.
+  *                         index of words corresponds to the digit
+  *                         that it represents, i.e. the string pointed to by
+  *                         words[3] corresponds to the digit 3.
+  * @retval     0           success
+  */
 int decode(char *str, int *lengths, char **words)
 {    
     // loop through first 10 words in str
@@ -148,7 +208,7 @@ int decode(char *str, int *lengths, char **words)
     char segments[NUM_SEGMENTS];
     memset(segments, '\0', NUM_SEGMENTS * sizeof(char));
 
-    while(!all_words_found(words)) {
+    while(!all_digits_found(words)) {
         str_tmp = str;
         for (int i = 0; i < NUM_WORDS; i++) { 
             int len = lengths[i]; // refactor for easier to read code
@@ -293,19 +353,33 @@ int decode(char *str, int *lengths, char **words)
             /*printf("%c", segments[i] == '\0' ? '_' : segments[i]);*/
         /*printf("\n");*/
     }
-    return 0;
+    return 0; // success
 }
 
-int pwr(int x, int y)
+/**
+  * Rasies an integer by powers of 10
+  * 
+  * @param  x   integer to raise
+  * @param  y   power of 10 to raise to
+  * @retval x   x * 10^y
+  */
+int exponent_base_10(int x, int y)
 {
-// raise int x to the power of y
-// good candidate for util.h
     for (int i = 0; i < y; i++)
         x *= 10;
     return x;
 }
 
-int find_duplicates(char *words[], int *num_segments)
+/**
+  * Search through a string and make sure there are no duplicate words
+  * (Debugging function)
+  *
+  * @param      words           string of words to search
+  * @param      num_segments    number of segments (letters) for each word
+  * @retval     0               no duplicates found
+  * @retval     >0              some duplicates found, error in code.
+  */
+int find_duplicates(char *words[], const int *num_segments)
 {
     int dupes = 0;
     for (int i = 0; i < NUM_INPUTS; i++) {
@@ -313,18 +387,18 @@ int find_duplicates(char *words[], int *num_segments)
             if (num_segments[i] == num_segments[j] && i != j
                     && words_equal(words[i], words[j], num_segments[i])) {
                 printf("ERROR: Duplicate word found.\n");
-                dupes = 1;
+                dupes++;
             }
         }
     }
-    return dupes;
+    return dupes; // 0 for success orno duplicates found
 }
 
 int main(int argc, char *argv[])
 {
     // number of segments corresponding to 7-segment display:
-    int num_segments[] =       { 6, 2, 5, 5, 4, 5, 6, 3, 7, 6 };
-    // corresponding digits:= {  0  1  2  3  4  5  6  7  8  9 };
+    const int num_segments[] = { 6, 2, 5, 5, 4, 5, 6, 3, 7, 6 };
+    // corresponding digits == { 0  1  2  3  4  5  6  7  8  9 };
     char datafile[] = "8data";
     if (argc > 1 && *argv[1] == 't') {
         printf("Test Mode!\n");
@@ -339,7 +413,7 @@ int main(int argc, char *argv[])
     // words, to be ordered by number value
     char **words = NULL;
 
-    int nums_to_count[NUM_OUTPUTS] = { 2, 3, 4, 7 };
+    const int nums_to_count[NUM_OUTPUTS] = { 2, 3, 4, 7 };
     int part_1_count = 0;
     int part_2_sum = 0;
     while(fgets(buffer, sizeof(buffer), data) != NULL) {
@@ -363,7 +437,7 @@ int main(int argc, char *argv[])
                 if (lengths[i] == num_segments[j] && words_equal(words[j], words[i], lengths[i])) {
                     power = NUM_WORDS - i - 1;
                     //printf("%s =? %s\n", words[i], words[j]);
-                    part_2_sum += pwr(j, power);
+                    part_2_sum += exponent_base_10(j, power);
                     // printf("%d * 10^%d = %d\n",j,power,pwr(j,power));
                 }
             }
