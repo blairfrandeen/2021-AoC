@@ -32,22 +32,13 @@
 #include <errno.h>
 #include <string.h>
 
-typedef struct {
-    int row;
-    int col; 
-    int height;
-} point_t;
-
 struct Heightmap {
     unsigned int num_rows;
     unsigned int num_cols;
-    unsigned int **heights; // 2D array of heights
+    unsigned int num_elements;
+    unsigned int *heights; // array of heights
     unsigned int risk;
-    point_t *points;
-    point_t *low_points;
-    unsigned int num_low_points;
 };
-
 
 /*
 * Determine the risk level for a given low point
@@ -94,37 +85,23 @@ struct Heightmap *Heightmap_create(char *file_name)
 
     map->num_cols = row_size / sizeof(char);
     map->num_rows = file_size / (row_size + 1); // add 1 to rowsize to count /n
+    map->num_elements = map->num_cols * map->num_rows;
 
     // allocate array for heightmap
-    map->heights = (unsigned int **)malloc(map->num_rows * sizeof(char *));
+    map->heights = (unsigned int *)malloc(map->num_elements * sizeof(unsigned int *));
 
-
-    for (int row_index = 0; row_index < map->num_rows; row_index++) {
-        map->heights[row_index] = (unsigned int *)malloc(map->num_cols * sizeof(char *));
-        for (int col_index = 0; col_index < map->num_cols; col_index++) {
-            map->heights[row_index][col_index] = (unsigned)(fgetc(input_file_handle) - '0');
-        }
-        fgetc(input_file_handle); // skip newline
-    }
-
-    // allocate pointer for list of points
-    // TODO: Why does this need to be sizeof(point_t) and not (point_t *)???
-    int absolute_index = 0;
-    map->points = (point_t *)malloc(map->num_rows * map->num_cols * sizeof(point_t));
-    for (int row_index = 0; row_index < map->num_rows; row_index++) {
-        for (int col_index = 0; col_index < map->num_cols; col_index++) {
-            map->points[absolute_index].height = map->heights[row_index][col_index];
-            map->points[absolute_index].row = row_index;
-            map->points[absolute_index].col = col_index;
-            absolute_index++;
+    for (int height_index = 0; height_index < map->num_elements; height_index++) {
+        unsigned next_height = (unsigned)(fgetc(input_file_handle) - '0'); 
+        if (next_height >=0 && next_height <= 9) {
+            map->heights[height_index] = next_height;
+        } else {
+            height_index--;
+            continue;
         }
     }
 
     fclose(input_file_handle);
     map->risk = 0; // initialize risk
-    // allocate enough space for all points to be low points
-    // TODO: Figure out how to make this work w/ realloc() in find_low_points
-    map->low_points = (point_t*)malloc(sizeof(point_t) * map->num_rows * map->num_cols);
 
     return map;
 }
@@ -134,13 +111,71 @@ struct Heightmap *Heightmap_create(char *file_name)
 */
 void Heightmap_destroy(struct Heightmap *map)
 {
-    for (int row_index = 0; row_index < map->num_rows; row_index++) {
-        free(map->heights[row_index]);
-        map->heights[row_index] = NULL;
-    }
-    free(map->points);
-    //free(map->low_points);
     free(map->heights);
+}
+
+/* 
+* Given row and column coordinates, return the height from a given heightmap.
+*
+* @param        map         pointer to Heightmap to query
+* @param        row         row in Heightmap
+* @param        col         column in Heightmap
+*/
+int rc_height(struct Heightmap *map, int row, int col)
+{
+    if (map == NULL) {
+        printf("Error: Bad access to heightmap.\n");
+        exit(-1);
+    }
+    if (row > map->num_rows) {
+        printf("Error: Tried to access map row %d of %d!\n", row, map->num_rows);
+        exit(-1);
+    }
+    if (col > map->num_cols) {
+        printf("Error: Tried to access map col %d of %d!\n", col, map->num_cols);
+        exit(-1);
+    }
+    return (map->heights[row * map->num_cols + col]);
+}
+
+/*
+* Given an index of a given heightmap, return the row index.
+*
+* @param        map         pointer to heightmap to query
+* @param        index       index to query
+* @retval                   row index of point.
+*/
+int row_index(struct Heightmap *map, int index)
+{
+    if (map == NULL) {
+        printf("Error: Bad access to heightmap.\n");
+        exit(-1);
+    }
+    if (index > map->num_elements) {
+        printf("Error: Tried to access map index %d of %d!\n", index, map->num_elements);
+        exit(-1);
+    }
+    return (int)(index / map->num_cols);
+}
+
+/*
+* Given an index of a given heightmap, return the col index.
+*
+* @param        map         pointer to heightmap to query
+* @param        index       index to query
+* @retval                   col index of point.
+*/
+int col_index (struct Heightmap *map, int index)
+{
+    if (map == NULL) {
+        printf("Error: Bad access to heightmap.\n");
+        exit(-1);
+    }
+    if (index > map->num_elements) {
+        printf("Error: Tried to access map index %d of %d!\n", index, map->num_elements);
+        exit(-1);
+    }
+    return (int)(index % map->num_cols);
 }
 
 /*
@@ -148,86 +183,41 @@ void Heightmap_destroy(struct Heightmap *map)
 * coordinates is a low point
 * 
 * @param    map         height map to look in
-* @param    row         row containing point
-* @param    col         column containing point
+* @param    index       index of point to query
 * @retval   0           point is not a low point
 * @retval   1           point is a low point
 */
-int is_low_point(struct Heightmap *map, int row, int col)
+int is_low_point(struct Heightmap *map, int index)
 {
+    int row = row_index(map, index);
+    int col = col_index(map, index);
     // check above
     if (row != 0) { // skip if we're on the first row
-        if (map->heights[row][col] >= map->heights[row-1][col])
+        if (map->heights[index] >= rc_height(map, row - 1, col))
             return 0;
     }
 
     // check below
     if (row != map->num_rows - 1) { // skip if we're on the last row
-        if (map->heights[row][col] >= map->heights[row+1][col])
+        if (map->heights[index] >= rc_height(map, row + 1, col))
             return 0;
     }
 
     // check behind
     if (col != 0) { // skip if first column
-        if (map->heights[row][col] >= map->heights[row][col-1])
+        if (map->heights[index] >= rc_height(map, row, col - 1))
             return 0;
     }
 
     // check ahead
     if (col != map->num_cols - 1) { // skip if last column
-        if (map->heights[row][col] >= map->heights[row][col+1])
+        if (map->heights[index] >= rc_height(map, row, col + 1))
             return 0;
     }
 
     return 1; // default if no other points lower
 }
 
-/*
-* Determine if a point in a given heightmap by point index 
-* is a low point.
-*
-* @param    map            height map to look in
-* @param    point_index    index in map->points to look at 
-*/
-int is_low_point_by_index(struct Heightmap *map, int point_index)
-{
-    return is_low_point(map, map->points[point_index].row, map->points[point_index].col);
-}
-
-/*
-* Print information about a point
-*
-* @param    pt      point to print info about
-*/
-void Point_info(point_t *pt)
-{
-    if (pt == NULL) {
-        printf("No point found, invalid pointer.\n");
-    } else {
-        printf("Point at [%d, %d]: %d\n", pt->row, pt->col, pt->height);
-    }
-}
-
-/*
-* Find all low points in a height map, and assign these
-* to the low_points pointer for that height map
-*
-* @param    map             height map to evaluate
-* @retval   num_low_points  number of low points found
-*/
-int find_low_points(struct Heightmap *map)
-{
-    int num_low_points = 0;
-    for (int point_index = 0; point_index < (map->num_rows * map->num_cols); point_index++) {
-        if (is_low_point_by_index(map, point_index)) {
-            map->low_points[num_low_points] = map->points[point_index];
-            /*Point_info(&map->low_points[num_low_points]);*/
-            num_low_points++;
-        }
-    }
-    map->num_low_points = num_low_points;
-    return num_low_points;
-}
 /*
 * Look through a height map and determine the number of lowpoints
 * Assign a risk to the map based on the risk function.
@@ -238,18 +228,15 @@ int find_low_points(struct Heightmap *map)
 int count_low_points(struct Heightmap *map)
 {
     int num_low_points = 0;
-    for (int row_index = 0; row_index < map->num_rows; row_index++) {
-        for (int col_index = 0; col_index < map->num_cols; col_index++) {
-            if (is_low_point(map, row_index, col_index)) {
-                num_low_points++;
-                map->risk += low_point_risk(map->heights[row_index][col_index]);
-            }
+    for (int height_index = 0; height_index < map->num_elements; height_index++) {
+        if (is_low_point(map, height_index)) {
+            num_low_points++;
+            map->risk += low_point_risk(map->heights[height_index]);
         }
     }
     
     return num_low_points;
 }
-
 
 /*
 * Print information about a height map
@@ -261,11 +248,7 @@ void Heightmap_info(struct Heightmap *map)
         printf("Error: heightmap not found.\n");
     printf("Heightmap is %u rows x %u cols.\n", map->num_rows, map->num_cols);
     printf("Number of low points: %d\n", count_low_points(map));
-    printf("Number of low points: %d\n", find_low_points(map));
     printf("RISK RATING: %u\n", map->risk);
-    /*for (int i = 0; i < map->num_low_points; i++) {*/
-        /*Point_info(&map->points[i]);*/
-    /*}*/
 }
 
 int main(int argc, char *argv[])
