@@ -1,10 +1,11 @@
 /* Synopsis: 7-segment display has all the wires crossed, and we need to uncross them. */
 /* SEVEN SEGMENT DISPLAY DEFINITION
+      0
 *    AAA
-*   F   B
+*   F   B 1
 *   F   B
 *    GGG
-*   E   C
+*   E   C 2
 *   E   C
 *    DDD 
 */
@@ -215,7 +216,7 @@ int decode(char *str, int *lengths, char **words)
 
             // assign the word to be analyzed
             word = malloc(len * sizeof(char*));
-            memset(word, '\0', len * sizeof(char));
+            memset(word, '\0', len * sizeof(char*));
             for (int w = 0; w < len; w++) 
                 word[w] = *str_tmp++;
 
