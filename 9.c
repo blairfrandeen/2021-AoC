@@ -59,11 +59,7 @@ int low_point_risk(int low_point_height)
 
 /*
 * Create a heightmap given an input file.
-* - Open the file
-* - Determine the number of rows
-* - Determine the number of columns
-* - Allocate a pointer for the heights
-* - Set risk to zero
+*
 * @param    file_handle     input file to read
 * @retval   map             pointer to height map
 */
@@ -97,13 +93,14 @@ struct Heightmap *Heightmap_create(char *file_name)
     // allocate array for heightmap
     map->heights = (uint8_t *)malloc(map->num_elements * sizeof(uint8_t));
 
-    for (int height_index = 0; height_index < map->num_elements; height_index++) {
+    // populate the heightmap
+    int height_index = 0;
+    while (height_index < map->num_elements) {
         uint8_t next_height = fgetc(input_file_handle) - '0'; 
+        // skip anything that's not 0 thru 9
         if (next_height >= 0 && next_height <= 9) {
             map->heights[height_index] = next_height;
-        } else {
-            height_index--;
-            continue;
+            height_index++;
         }
     }
 
@@ -217,19 +214,19 @@ int Heightmap_neighbors(struct Heightmap *map, int index, int *neighbors, int *n
 
     // check above
     if (row != 0)  // skip if on top row
-        push(neighbors, num_neighbors, rc_index(map, row - 1, col));
+        push_unique(neighbors, num_neighbors, rc_index(map, row - 1, col));
 
     // check in front
     if (col != (map->num_cols - 1))  // skip if last column
-        push(neighbors, num_neighbors, rc_index(map, row, col + 1));
+        push_unique(neighbors, num_neighbors, rc_index(map, row, col + 1));
 
     // check below
     if (row != (map->num_rows - 1))  // skip if last row
-        push(neighbors, num_neighbors, rc_index(map, row + 1, col));
+        push_unique(neighbors, num_neighbors, rc_index(map, row + 1, col));
 
     // check behind
     if (col != 0)  // skip if first column
-        push(neighbors, num_neighbors, rc_index(map, row, col - 1));
+        push_unique(neighbors, num_neighbors, rc_index(map, row, col - 1));
 
     return 0; // success
 }
@@ -375,10 +372,6 @@ int search_basin(struct Heightmap *map, int low_point_index)
         printf("Error with Heightmap_neighbors() called in search_basin().\n");
         exit(-1);
     }
-    /*printf("Basin: ");*/
-    /*print_array(basin, basin_size);*/
-    /*printf("Points to Search: ");*/
-    /*print_array(points_to_search, num_to_search);*/
     while(num_to_search > 0) { // keep going until we've exhausted our options
         // grab the next thing on top of the points_to_search stack
         int current_index = pop(points_to_search, &num_to_search);
@@ -391,6 +384,7 @@ int search_basin(struct Heightmap *map, int low_point_index)
         // if not a ridge or already in the basin, add it to the basin
         push(basin, &basin_size, current_index);
 
+        // TODO: Ensure that we aren't pushing items to the stack that are already there!
         if (Heightmap_neighbors(map, current_index, points_to_search, &num_to_search)) {
             printf("Error with Heightmap_neighbors() called in search_basin() main loop.\n");
             exit(-1);
@@ -434,7 +428,8 @@ int evaluate_basins(struct Heightmap *map)
         }
     }
     array_sort_descending(basin_sizes, map->num_low_points, 3);
-    print_array(basin_sizes, map->num_low_points);
+    printf("Top 3 Basins: ");
+    print_array(basin_sizes, 3);
 
     map->basin_score = basin_sizes[0] * basin_sizes[1] * basin_sizes[2];
 
@@ -461,27 +456,15 @@ void Heightmap_info(struct Heightmap *map)
 
 int main(int argc, char *argv[])
 {
-    char test_file[] = "9test";
-    char data_file[] = "9data";
-
-    struct Heightmap *test_map = Heightmap_create(test_file);
+    struct Heightmap *test_map = Heightmap_create("9test");
     Heightmap_info(test_map);
     Heightmap_destroy(test_map);
     free(test_map);
     
-    struct Heightmap *data_map = Heightmap_create(data_file);
+    struct Heightmap *data_map = Heightmap_create("9data");
     Heightmap_info(data_map);
     Heightmap_destroy(data_map);
     free(data_map);
 
     return 0;
-}
-
-void tests() {
-    int arr[] = { -77, 3, 28, 1, 9, 0, -1, 18, 3232 };
-    print_array(arr, 9);
-    array_sort_descending(arr, 9, 3);
-    print_array(arr, 9);
-    int product_three_largest = arr[0] * arr[1] * arr[2];
-    printf("Product of 3 largest = %d\n", product_three_largest);
 }
