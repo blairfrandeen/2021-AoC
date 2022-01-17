@@ -34,8 +34,10 @@ Character values for brackets:
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include "util.h"
 
 #define INPUT_LEN 128       // length of each line
+#define MAX_LINES 128       // max number of lines
 #define NUM_BRACKET_TYPES 4 // number of bracket characters we use
 
 const char openers[] = "([{<";
@@ -56,7 +58,6 @@ int is_opener(char input)
     }
     return 0;
 }
-
 
 /*
 * Return whether a character is an closing bracket
@@ -127,13 +128,13 @@ char match(char input)
 }
 
 /*
-* Push an element onto the end of an array
+* Push an unsigned long onto the end of an array
 *
 * @param    p_array             pointer to the array to push to
 * @param    p_n                 pointer to the number of elements in the array
-* @param    element             element to add to the end of the array
+* @param    element             unsigned long element to add to the end of the array
 */
-void push(char *p_array, int *p_n, char element)
+void ul_push(unsigned long *p_array, int *p_n, unsigned long element)
 {
     if (p_array == NULL || p_n == NULL) {
         printf("Invalid pointer in push()\n");
@@ -148,20 +149,41 @@ void push(char *p_array, int *p_n, char element)
 }
 
 /*
-* pop an element off of the end of an array
+* Push a char onto the end of an array
 *
-* @param    p_array             pointer to the array to pop from
+* @param    p_array             pointer to the array to push to
 * @param    p_n                 pointer to the number of elements in the array
-* @retval   element             element at the end of the array
+* @param    element             char to add to the end of the array
 */
-char pop(char *p_array, int *p_n)
+void c_push(char *p_array, int *p_n, char element)
 {
     if (p_array == NULL || p_n == NULL) {
-        printf("Invalid pointer in pop()\n");
+        printf("Invalid pointer in c_push()\n");
         exit(-1);
     }
     if (*p_n < 0) {
-        printf("Error: pop() attempted to access array of size < 0.\n");
+        printf("Error: c_push() attempted to access array of size < 0.\n");
+        exit(-1);
+    }
+    p_array[*p_n] = element;
+    (*p_n)++; // increase array size
+}
+
+/*
+* pop a char off of the end of an array
+*
+* @param    p_array             pointer to the array to pop from
+* @param    p_n                 pointer to the number of elements in the array
+* @retval   element             char at the end of the array
+*/
+char c_pop(char *p_array, int *p_n)
+{
+    if (p_array == NULL || p_n == NULL) {
+        printf("Invalid pointer in c_pop()\n");
+        exit(-1);
+    }
+    if (*p_n < 0) {
+        printf("Error: c_pop() attempted to access array of size < 0.\n");
         exit(-1);
     }
     (*p_n)--; // decrease the size of the array
@@ -177,19 +199,106 @@ char pop(char *p_array, int *p_n)
 */
 int bracket_score(char illegal_char)
 {
-    switch((int)(illegal_char)) {
-        case 41:    // ')'
+    if (!char_is_valid(illegal_char)) {
+        printf("Warning: Invalid character sent to bracket_score().\n");
+        return 0;
+    }
+    switch(illegal_char) {
+        case ')':
             return 3;
-        case 93:    // ']'
+        case ']':
             return 57;
-        case 125:   // '}'
+        case '}':
             return 1197;
-        case 62:    // '>'
+        case '>':
             return 25137;
         default:
             printf("Warning: unexpected character %c passed to bracket_score!\n", illegal_char);
             return 0;
     }
+}
+
+/*
+* Add to the score for a given line in part 2 based on the character added.
+*
+* @param    added_char       character that was added
+* @param    starting_score   starting score for given line
+* @retval   0                bad character input
+* @retval   new score
+*/
+unsigned long part_2_score(char added_char, unsigned long starting_score)
+{
+    if (!is_closer(added_char)) {
+        printf("Warning: Bad added_char to part_2_score.\n");
+        return 0;
+    }
+    unsigned long new_score = starting_score * 5;
+    for (int i = 0; i < NUM_BRACKET_TYPES; i++) {
+        if (added_char == closers[i]) {
+            new_score += i + 1;
+            break;
+        }
+    }
+    return new_score;
+}
+
+/*
+* Print an array to the screen (debug function)
+*
+* @param    array       the array to print
+* @param    n           the length of the array
+*                       (or number of elements to print)
+*/
+void print_array_ul(unsigned long array[], int n)
+{
+    if (array == NULL) {
+        printf("Error: print_array() called with bad pointer.\n");
+        exit(-1);
+    }
+    printf("[ ");
+    for (int i = 0; i < n; i++) {
+        printf("%lu ", array[i]);
+    }
+    printf("]\n");
+}
+
+/*
+* Sort an array of unsigned longs in descending order (largest element first)
+*
+* @param        array       the array to sort
+* @param        n           number of elements in array
+* @param        n_to_sort   number of elements to sort
+*                           set equal to n to sort entire array
+* @retval       0           sort successful
+* @retval       1           sort failure
+*/
+int array_sort_descending(unsigned long *array, int n, int n_to_sort)
+{
+    if (array == NULL) {
+        printf("Error: Bad pointer.\n");
+        return 1;
+    }
+    if (n < 1) {
+        printf("Error: Cannot sort array with 0 or fewer elements.\n");
+        return 1;
+    }
+    int num_sorted = 0;
+    // keep going until we've sorted as many as required
+    while (num_sorted < n_to_sort) {
+        // start at the first index that has not been sorted
+        int max_index = num_sorted;
+        for (int i = num_sorted; i < n; i++) {
+            if (array[i] > array[max_index]) {
+                max_index = i;
+            }
+        }
+        unsigned long tmp = array[num_sorted];
+        array[num_sorted] = array[max_index];
+        array[max_index] = tmp;
+        num_sorted++;
+    }
+
+    return 0; // success
 }
 
 /*
@@ -204,58 +313,74 @@ void read_puzzle(char datafile[])
         printf("Error reading input file %s: %s\n", datafile, strerror(errno));
         exit(-1);
     }
+    // track num opening brackets
+    int num_openers;
+
+    // array to track part 1
+    int num_corrupted_lines = 0;
+    int score_corrupted[MAX_LINES];
+
+    // array to track part 2
+    int num_incomplete_lines = 0;
+    unsigned long score_incomplete[MAX_LINES]; 
+
+    // buffers for opening brackets & input
+    char opening_brackets[INPUT_LEN];
+    char input_buffer[INPUT_LEN];
 
     // read the file one line at a time
-    char current_char;
-    int line_num = 0;
-    int num_openers = 0;
-    int puzzle_score = 0;
+    while (fgets(input_buffer, sizeof(input_buffer), file_stream)) {
+        unsigned long score_part_2 = 0;
+        char current_char;
+        num_openers = 0;    // reset counter to zero
+        for (int char_index = 0; char_index < INPUT_LEN; char_index++) {
+            // get the next character from the buffer
+            current_char = input_buffer[char_index];
+            if (current_char == '\n') 
+                break; // go to next line
 
-    // stack of opening brackets
-    char opening_brackets[INPUT_LEN];
-
-    while ((current_char = fgetc(file_stream)) != EOF) {
-        // go on to the next part of the puzzle if newline
-        if (current_char == '\n') {
-            line_num++;
-            num_openers = 0;
-            continue;
-        }
-
-        // if character is opening bracket, add it to the stack
-        if (is_opener(current_char)) {
-            push(opening_brackets, &num_openers, current_char);
-            /*printf("%c - ", current_char);*/
-            /*printf("Num openers: %d\n", num_openers);*/
-        } else if (is_closer(current_char)) {
-            // else if character is closing bracket, pop the stack and compare them
-            char opener = pop(opening_brackets, &num_openers);
-            /*printf("Char %d: Opener %c match with closer %c? %c\n", num_openers, opener,*/
-                    /*current_char, match(current_char));*/
-            if (opener == match(current_char)) {
-                // if they match, continue
-                continue;
-            } else {
-                // if not a match, return the illegal character
-                // printf("Line %d: found illegal character %c\n", line_num, current_char);
-                puzzle_score += bracket_score(current_char);
-                // skip the rest of the line
-                while(fgetc(file_stream) != '\n')
+            // if character is opening bracket, add it to the stack
+            if (is_opener(current_char)) {
+                c_push(opening_brackets, &num_openers, current_char);
+            } else if (is_closer(current_char)) { // else if character is closing bracket, 
+                // pop the stack and compare them
+                if (c_pop(opening_brackets, &num_openers) == match(current_char)) {
+                    // if they match, continue
                     continue;
-                line_num++;
+                } else {
+                    // if not a match, return the illegal character
+                    push(score_corrupted, &num_corrupted_lines, bracket_score(current_char));
+                    goto next_line; // line is corrupted, move to next
+                }
             }
         }
+        // part II:
+        while (num_openers > 0) { // add closing brackets to all unclosed
+            char next = c_pop(opening_brackets, &num_openers);
+            score_part_2 = part_2_score(match(next), score_part_2);
+        }
+        // add final score to array of 
+        ul_push(score_incomplete, &num_incomplete_lines, score_part_2);
+        /*printf(" - Score: %lu", score_part_2);*/
+next_line:
+        ;
     }
-    printf("Final Score: %d\n", puzzle_score);
+    printf("\n");
+    printf("Num corrupted: %d\n", num_corrupted_lines);
+    printf("Corrupted Line Score: %d\n", sum(score_corrupted, &num_corrupted_lines));
+    printf("Num incomplete: %d\n", num_incomplete_lines);
+    array_sort_descending(score_incomplete, num_incomplete_lines, num_incomplete_lines);
+    /*print_array_ul(score_incomplete, num_incomplete_lines);*/
+    printf("Incomplete Line Middle Score: %lu\n", score_incomplete[num_incomplete_lines/2]);
 }
 
 int main(int argc, char *argv[])
 {
     printf("Part 1:\n");
     printf("Test Input ");
-    read_puzzle("10test");
+    read_puzzle("10test"); // expected: 26397
 
-    printf("Full Input ");
-    read_puzzle("10data");
+    printf("Full Input "); 
+    read_puzzle("10data"); // expected: 343863
     return 0;
 }

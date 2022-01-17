@@ -186,7 +186,7 @@ int sum(int *arr, int *n)
 {
     int *cur = arr;
     int sum = 0;
-    for (; (cur - arr) <= *n; cur++) {
+    for (; (cur - arr) < *n; cur++) {
         sum += *cur;
     }
     return sum;
