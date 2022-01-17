@@ -43,6 +43,7 @@ struct Heightmap {
     uint8_t *heights; // array of heights
     unsigned num_low_points;
     unsigned risk;
+    unsigned basin_score;
 };
 
 /*
@@ -109,6 +110,7 @@ struct Heightmap *Heightmap_create(char *file_name)
     fclose(input_file_handle);
     map->risk = 0; // initialize risk
     map->num_low_points = 0; // initialize low points
+    map->basin_score = 0;
 
     return map;
 }
@@ -194,11 +196,11 @@ int col_index (struct Heightmap *map, int index)
 * @param    map             heightmap to search
 * @param    index           index within heightmap
 * @param    neighbors       array to populate with neighboring indices
-*                           an index of indicates edge of map
-* @retval   1               error
-* @retval   0               success
+* @param    num_neighbors   pointer to array size for neighbors
+* @retval   1               error with parameters
+* @retval   0               succeeded
 */
-int Heightmap_neighbors(struct Heightmap *map, int index, int *neighbors)
+int Heightmap_neighbors(struct Heightmap *map, int index, int *neighbors, int *num_neighbors)
 {
     if (map == NULL || neighbors == NULL) {
         printf("Error: Bad access to heightmap.\n");
@@ -214,32 +216,20 @@ int Heightmap_neighbors(struct Heightmap *map, int index, int *neighbors)
     int col = col_index(map, index);
 
     // check above
-    if (row == 0) {
-        neighbors[0] = -1;
-    } else {
-        neighbors[0] = rc_index(map, row - 1, col);
-    }
+    if (row != 0)  // skip if on top row
+        push(neighbors, num_neighbors, rc_index(map, row - 1, col));
 
     // check in front
-    if (col == (map->num_cols - 1)) {
-        neighbors[1] = -1;
-    } else {
-        neighbors[1] = rc_index(map, row, col + 1);
-    }
+    if (col != (map->num_cols - 1))  // skip if last column
+        push(neighbors, num_neighbors, rc_index(map, row, col + 1));
 
     // check below
-    if (row == (map->num_rows - 1)) {
-        neighbors[2] = -1;
-    } else {
-        neighbors[2] = rc_index(map, row + 1, col);
-    }
+    if (row != (map->num_rows - 1))  // skip if last row
+        push(neighbors, num_neighbors, rc_index(map, row + 1, col));
 
     // check behind
-    if (col == 0) {
-        neighbors[3] = -1;
-    } else {
-        neighbors[3] = rc_index(map, row, col - 1);
-    }
+    if (col != 0)  // skip if first column
+        push(neighbors, num_neighbors, rc_index(map, row, col - 1));
 
     return 0; // success
 }
@@ -256,16 +246,14 @@ int Heightmap_neighbors(struct Heightmap *map, int index, int *neighbors)
 int is_low_point(struct Heightmap *map, int index)
 {
     int neighbors[MAX_NEIGHBORS];
+    int num_neighbors = 0;
 
-    if (Heightmap_neighbors(map, index, neighbors)) {
-        printf("Error in Heightmap_neighbors.\n");
+    if (Heightmap_neighbors(map, index, neighbors, &num_neighbors)) {
+        printf("Error in Heightmap_neighbors called from low_point().\n");
         exit(-1);
     }
 
-    for (int neighbor_index = 0; neighbor_index < MAX_NEIGHBORS; neighbor_index++) {
-        if (neighbors[neighbor_index] == - 1) { // no neighbor to check
-            continue;
-        }
+    for (int neighbor_index = 0; neighbor_index < num_neighbors; neighbor_index++) {
         if (map->heights[index] >= map->heights[neighbors[neighbor_index]]) // not a low point
             return 0;
     }
@@ -277,7 +265,7 @@ int is_low_point(struct Heightmap *map, int index)
         printf("%d ", map->heights[neighbors[i]]);
 
     print_array(neighbors, MAX_NEIGHBORS);
-    */
+     */
     return 1; // default if no other points lower
 }
 
@@ -328,22 +316,6 @@ int evaluate_risk(struct Heightmap *map)
 }
 
 /*
-* Print information about a height map
-* @param    map     map to print information about
-*/
-void Heightmap_info(struct Heightmap *map)
-{
-    if (map == NULL) 
-        printf("Error: heightmap not found.\n");
-    printf("-------\n");
-    printf("Heightmap is %u rows x %u cols.\n", map->num_rows, map->num_cols);
-    if (!count_low_points(map))
-        printf("Number of low points: %d\n", map->num_low_points);
-    if (!evaluate_risk(map))
-        printf("RISK RATING: %u\n", map->risk);
-}
-
-/*
 * Sort an array in descending order (largest element first)
 *
 * @param        array       the array to sort
@@ -382,26 +354,124 @@ int array_sort_descending(int *array, int n, int n_to_sort)
     return 0; // success
 }
 
-// look through entire heightmap for low points.
-// if a low point is found, begin building the basin
-// initialize an array 
-// is_low_point can be generalized to:
-//  from this index, populate an array of indices, up to 4, to search in
-//  then for each of those indices, check if the value is lower
+/* 
+* Starting at a known low point, determine the size of a basin.
+*
+* @param        map                 the heightmap to look in
+* @param        low_point_index     the index of the low point (starting point)
+* @retval       basin_size          the size of the basin
+*/
+int search_basin(struct Heightmap *map, int low_point_index)
+{
+    if (map == NULL) 
+        printf("Error: heightmap not found.\n");
+    int basin[map->num_elements];               // worst case, basin is entire map
+    basin[0] = low_point_index;                 // first point in basin is always the low point
+    int basin_size = 1;                         // low_point counts as part of basin
+
+    int points_to_search[map->num_elements];    // worst case, need to search entire map
+    int num_to_search = 0;                      // number of points left to search
+    if (Heightmap_neighbors(map, low_point_index, points_to_search, &num_to_search)) {
+        printf("Error with Heightmap_neighbors() called in search_basin().\n");
+        exit(-1);
+    }
+    /*printf("Basin: ");*/
+    /*print_array(basin, basin_size);*/
+    /*printf("Points to Search: ");*/
+    /*print_array(points_to_search, num_to_search);*/
+    while(num_to_search > 0) { // keep going until we've exhausted our options
+        // grab the next thing on top of the points_to_search stack
+        int current_index = pop(points_to_search, &num_to_search);
+
+        if (map->heights[current_index] == 9) // we've reached a ridge
+            continue;
+        if (is_in(current_index, basin, basin_size)) // already in the basin
+            continue;
+
+        // if not a ridge or already in the basin, add it to the basin
+        push(basin, &basin_size, current_index);
+
+        if (Heightmap_neighbors(map, current_index, points_to_search, &num_to_search)) {
+            printf("Error with Heightmap_neighbors() called in search_basin() main loop.\n");
+            exit(-1);
+        }
+
+        /*printf("Basin: ");*/
+        /*print_array(basin, basin_size);*/
+        /*printf("Points to Search: ");*/
+        /*print_array(points_to_search, num_to_search);*/
+    }
+
+    return basin_size;
+}
+
+/*
+* Find the product of the top 3 basins in a heightmap.
+*
+* @param    map      heightmap to evaluate
+* @retval   1        error reading heightmap
+* @retval   0        basins evaluated and final result generated
+*/
+int evaluate_basins(struct Heightmap *map)
+{
+    if (map == NULL) {
+        printf("Error: bad map pointer.\n");
+        return 1;
+    }
+    // make sure we know how many low points / basins we have
+    if (map->num_low_points == 0)
+        count_low_points(map);
+
+    // initialize array of basins
+    int basin_index = 0;
+    int basin_sizes[map->num_low_points];
+
+    // look through entire map
+    for (int map_index = 0; map_index < map->num_elements; map_index++) {
+        if (is_low_point(map, map_index)) {
+            basin_sizes[basin_index] = search_basin(map, map_index);
+            basin_index++;
+        }
+    }
+    array_sort_descending(basin_sizes, map->num_low_points, 3);
+    print_array(basin_sizes, map->num_low_points);
+
+    map->basin_score = basin_sizes[0] * basin_sizes[1] * basin_sizes[2];
+
+    return 0; // success
+}
+
+/*
+* Print information about a height map
+* @param    map     map to print information about
+*/
+void Heightmap_info(struct Heightmap *map)
+{
+    if (map == NULL) 
+        printf("Error: heightmap not found.\n");
+    printf("Heightmap is %u rows x %u cols.\n", map->num_rows, map->num_cols);
+    if (!count_low_points(map))
+        printf("Number of low points: %d\n", map->num_low_points);
+    if (!evaluate_risk(map))
+        printf("RISK RATING: %u\n", map->risk);
+    evaluate_basins(map);
+    printf("BASIN SCORE: %d\n", map->basin_score);
+    printf("-------\n");
+}
+
 int main(int argc, char *argv[])
 {
     char test_file[] = "9test";
     char data_file[] = "9data";
 
     struct Heightmap *test_map = Heightmap_create(test_file);
-    struct Heightmap *data_map = Heightmap_create(data_file);
-
     Heightmap_info(test_map);
-    Heightmap_info(data_map);
-
     Heightmap_destroy(test_map);
-    Heightmap_destroy(data_map);
     free(test_map);
+    
+    struct Heightmap *data_map = Heightmap_create(data_file);
+    Heightmap_info(data_map);
+    Heightmap_destroy(data_map);
     free(data_map);
 
     return 0;
