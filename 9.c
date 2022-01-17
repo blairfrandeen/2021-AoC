@@ -368,6 +368,8 @@ int search_basin(struct Heightmap *map, int low_point_index)
 
     int points_to_search[map->num_elements];    // worst case, need to search entire map
     int num_to_search = 0;                      // number of points left to search
+
+    // find valid neighbors of the low point, and add them to the points to search
     if (Heightmap_neighbors(map, low_point_index, points_to_search, &num_to_search)) {
         printf("Error with Heightmap_neighbors() called in search_basin().\n");
         exit(-1);
@@ -384,7 +386,10 @@ int search_basin(struct Heightmap *map, int low_point_index)
         // if not a ridge or already in the basin, add it to the basin
         push(basin, &basin_size, current_index);
 
-        // TODO: Ensure that we aren't pushing items to the stack that are already there!
+        // Search valid neighbors and add them to points to search.
+        // Heightmap_neighbors calls push_unique() to ensure we never search the same
+        // point twice.
+        // TODO: Rewrite so we don't add points already in the basin to the search stack.
         if (Heightmap_neighbors(map, current_index, points_to_search, &num_to_search)) {
             printf("Error with Heightmap_neighbors() called in search_basin() main loop.\n");
             exit(-1);
