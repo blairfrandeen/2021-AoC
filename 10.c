@@ -42,6 +42,7 @@ Character values for brackets:
 
 const char openers[] = "([{<";
 const char closers[] = ")]}>";
+const int illegal_scores[] = { 3, 57, 1197, 25137 };
 
 /*
 * Return whether a character is an opening bracket
@@ -101,30 +102,14 @@ char match(char input)
         return 0;
     } 
     /*printf("Checking for match to %c.\n", input);*/
-    switch(input) {
-        case '(':
-            return ')';
-        case ')':
-            return '(';
-
-        case '[':
-            return ']';
-        case ']':
-            return '[';
-
-        case '{':
-            return '}';
-        case '}':
-            return '{';
-
-        case '<':
-            return '>';
-        case '>':
-            return '<';
-
-        default:
-            return '\0';
+    for (int i = 0; i < NUM_BRACKET_TYPES; i++) {
+        if (input == openers[i]) {
+            return closers[i];
+        } else if (input == closers[i]) {
+            return openers[i];
+        } 
     }
+    return 0;
 }
 
 /*
@@ -203,19 +188,11 @@ int bracket_score(char illegal_char)
         printf("Warning: Invalid character sent to bracket_score().\n");
         return 0;
     }
-    switch(illegal_char) {
-        case ')':
-            return 3;
-        case ']':
-            return 57;
-        case '}':
-            return 1197;
-        case '>':
-            return 25137;
-        default:
-            printf("Warning: unexpected character %c passed to bracket_score!\n", illegal_char);
-            return 0;
+    for (int i = 0; i < NUM_BRACKET_TYPES; i++) {
+        if (illegal_char == closers[i])
+            return illegal_scores[i];
     }
+    return 0;
 }
 
 /*
@@ -372,15 +349,17 @@ next_line:
     array_sort_descending(score_incomplete, num_incomplete_lines, num_incomplete_lines);
     /*print_array_ul(score_incomplete, num_incomplete_lines);*/
     printf("Incomplete Line Middle Score: %lu\n", score_incomplete[num_incomplete_lines/2]);
+
+    fclose(file_stream);
 }
 
 int main(int argc, char *argv[])
 {
     printf("Part 1:\n");
     printf("Test Input ");
-    read_puzzle("10test"); // expected: 26397
+    read_puzzle("10test"); 
 
     printf("Full Input "); 
-    read_puzzle("10data"); // expected: 343863
+    read_puzzle("10data"); 
     return 0;
 }
