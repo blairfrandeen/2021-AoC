@@ -20,8 +20,69 @@ Part I Plan:
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <errno.h>
+#include <string.h>
 
 #define PRINT_DEBUG // comment out to hide debugging
+
+struct OctopusArmy {
+    int num_rows;
+    int num_cols;
+    int num_octopuses;
+    uint8_t *energy_levels;
+};
+
+/*
+* Read a datafile of inital energy levels and fill an army of flashing octopi 
+*
+* @param    datafile        the data file to read from
+* @retval   p_army_t        an army of octopuses, what else?
+*/
+struct OctopusArmy *Assemble(char datafile[])
+{
+    FILE *file_stream = fopen(datafile, "r");
+    if (file_stream == NULL) {
+        printf("Error: Could not open file %s: %s.\n", datafile, strerror(errno));
+        exit(-1);
+    }
+    struct OctopusArmy *p_army_t = malloc(sizeof(struct OctopusArmy));
+
+    // determine number of columns
+    while(fgetc(file_stream) != '\n');
+    p_army_t->num_cols = ftell(file_stream) / sizeof(char) - 1;
+
+    // determine number of rows
+    fseek(file_stream, 0, EOF);
+    p_army_t->num_rows = ftell(file_stream) / sizeof(char) - 1;
+    rewind(file_stream);
+
+    p_army_t->num_octopuses = p_army_t->num_rows * p_army_t->num_cols;
+
+    p_army_t->energy_levels = malloc(p_army_t->num_rows * p_army_t->num_cols * sizeof(uint8_t));
+
+    int octopus_index = 0;
+    char next_octopus;
+    while((next_octopus = fgetc(file_stream)) != EOF) {
+        if (next_octopus == '\n') continue;
+
+        p_army_t->energy_levels[octopus_index] = next_octopus - '0';
+        octopus_index++;
+    }
+
+    fclose(file_stream);
+    return p_army_t;
+}
+
+/*
+* Disperse the army of octopuses back to their ocean homes.
+*
+* @param    p_army_t            pointer to the army to disperse
+*/
+void OctopusArmy_disperse(struct OctopusArmy *p_army_t)
+{
+    free(p_army_t);
+}
+
 /*
 * Remove an element from the end of a queue and return it.
 *
@@ -29,7 +90,7 @@ Part I Plan:
 * @param    p_queue_length      pointer to length of the queue.
 * @retval                       value of last item in the queue.
 */
-uint8_t dequeue(uint8_t *p_queue, unsigned *p_queue_length)
+int dequeue(int *p_queue, unsigned *p_queue_length)
 {
     if (p_queue == NULL || p_queue_length == NULL) {
         printf("Bad pointer sent to dequeue().\n");
@@ -48,7 +109,7 @@ uint8_t dequeue(uint8_t *p_queue, unsigned *p_queue_length)
 * @param    p_queue             queue structure to add element to
 * @param    p_queue_length      pointer to length of the queue.
 */
-void queue(uint8_t *p_queue, unsigned *p_queue_length, uint8_t element)
+void queue(int *p_queue, unsigned *p_queue_length, int element)
 {
     if (p_queue == NULL || p_queue_length == NULL) {
         printf("Bad pointer sent to queue().\n");
@@ -70,7 +131,7 @@ void queue(uint8_t *p_queue, unsigned *p_queue_length, uint8_t element)
 * @param    p_queue         pointer to queue to print
 * @param    p_queue_length  pointer to length of queue
 */
-void print_queue(uint8_t *p_queue, unsigned *p_queue_length)
+void print_queue(int *p_queue, unsigned *p_queue_length)
 {
 #ifdef PRINT_DEBUG
     printf("[ ");
@@ -80,10 +141,83 @@ void print_queue(uint8_t *p_queue, unsigned *p_queue_length)
 #endif
 }
 
+/*
+* Print info about the octopus army
+*
+* @param    p_army_t            Pointer to the army to query
+*/
+void OctopusArmy_info(struct OctopusArmy *p_army_t)
+{
+#ifdef PRINT_DEBUG
+    printf("Army is %d rows x %d cols.\n", p_army_t->num_rows, p_army_t->num_cols);
+    printf("There are %d octopusues ready to flash you.\n", p_army_t->num_octopuses);
+    for (int i = 0; i < p_army_t->num_octopuses; i++) {
+        if (i % p_army_t->num_cols == 0 && i != 0) 
+            printf("\n");
+        printf("%d", p_army_t->energy_levels[i]);
+    }
+    printf("\n");
+#endif
+}
+
+/*
+* Allow an octopus army to do its thing and flash at you for a 
+* specified number of steps.
+* 
+* @param    p_army_t        pointer to the octopus army
+* @param    num_steps       number of steps to let them flash.
+* @retval   num_flashes     number of times the army flashed.
+*/
+int OctopusArmy_flash(struct OctopusArmy *p_army_t, int num_steps)
+{
+    if (p_army_t == NULL) {
+        printf("Error: Bad pointer to OctopusArmy in OctopusArmy_flash().\n");
+        exit(-1);
+    }
+    if (num_steps < 1) {
+        printf("Error: Cannot flash for less than 1 step.\n");
+        return 0;
+    }
+    int num_flashes = 0;
+    int max_queue_size = 9 * p_army_t->num_octopuses;
+
+    for (int step = 0; step < num_steps; step++) {
+        /* allocate a queue on the stack for increasing energy levels
+        An octopus can appear in the queue more than once, but not
+        more than 9 times, since it gets 1 free flash per turn
+        and flashes from up to 8 neighbors */
+        int energy_queue[max_queue_size];
+        unsigned queue_length = 0;
+
+        // add all octopi to the energy increase queue
+        for (int octopus_index = 0; octopus_index < p_army_t->num_octopuses; octopus_index++)
+            queue(energy_queue, &queue_length, octopus_index);
+
+        /*print_queue(energy_queue, &queue_length);*/
+        while(queue_length > 0) {
+            int energy_index = dequeue(energy_queue, &queue_length);
+            p_army_t->energy_levels[energy_index] += 1;
+            if (p_army_t->energy_levels[energy_index] == 10) {
+                num_flashes++;
+                // TODO: find all neighbors and add them to the queue
+            }
+        }
+
+        // reset all octopuses that flashed to 0 energy
+        for (int octopus_index = 0; octopus_index < p_army_t->num_octopuses; octopus_index++) {
+            if (p_army_t->energy_levels[octopus_index] > 9)
+                p_army_t->energy_levels[octopus_index] = 0;
+        }
+        /*OctopusArmy_info(p_army_t);*/
+    }
+
+    return num_flashes;
+}
+
 int main(int argc, char *argv[])
 {
     unsigned queue_length = 5;
-    uint8_t test_queue[5] = { 11, 29, 23, 43, 35 };
+    int test_queue[5] = { 11, 29, 23, 43, 35 };
 
     // Testing of queue & dequeue functions
     print_queue(test_queue, &queue_length);
@@ -91,6 +225,12 @@ int main(int argc, char *argv[])
     printf("New Length: %d\n", queue_length);
     queue(test_queue, &queue_length, 76);
     print_queue(test_queue, &queue_length);
+
+    struct OctopusArmy *test_army = Assemble("11test");
+    int num_steps = 2;
+    printf("%d flashes after %d steps.\n", OctopusArmy_flash(test_army, num_steps), num_steps);
+    OctopusArmy_info(test_army);
+    OctopusArmy_disperse(test_army);
 
     return 0;
 }
