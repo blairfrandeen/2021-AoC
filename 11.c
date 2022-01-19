@@ -23,7 +23,7 @@ Part I Plan:
 #include <errno.h>
 #include <string.h>
 
-#define PRINT_DEBUG // comment out to hide debugging
+//#define PRINT_DEBUG // comment out to hide debugging
 
 struct OctopusArmy {
     int num_rows;
@@ -80,6 +80,7 @@ struct OctopusArmy *Assemble(char datafile[])
 */
 void OctopusArmy_disperse(struct OctopusArmy *p_army_t)
 {
+    free(p_army_t->energy_levels);
     free(p_army_t);
 }
 
@@ -161,6 +162,43 @@ void OctopusArmy_info(struct OctopusArmy *p_army_t)
 }
 
 /*
+* Allow an octopus to charge its neighbors after flashing.
+*
+* @param    p_army_t        the army of octopuses
+* @param    octopus_index   the index within the army of the flasher
+* @param    p_energy_queue  The queue of octopuses to have their energy raised
+* @param    p_queue_length  the length of the energy queue
+*/
+void charge_neighbors(struct OctopusArmy *p_army_t, int octopus_index,
+        int *p_energy_queue, unsigned *p_queue_length)
+{
+    if (p_army_t == NULL) {
+        printf("Error: Bad pointer to OctopusArmy in charge_neighbors().\n");
+        exit(-1);
+    }
+
+    int self_row = octopus_index / p_army_t->num_rows;
+    int self_col = octopus_index % p_army_t->num_cols;
+
+    for (int neighbor_row = self_row - 1; neighbor_row <= self_row + 1; neighbor_row++) {
+        // skip if we're on the edge of the map
+        if (neighbor_row < 0 || neighbor_row > p_army_t->num_rows - 1)
+            continue;
+        for (int neighbor_col = self_col - 1; neighbor_col <= self_col + 1; neighbor_col++) {
+            // skip if we're on the edge of the map
+            if (neighbor_col < 0 || neighbor_col > p_army_t->num_cols - 1)
+                continue;
+            // don't self-charge
+            if (neighbor_col == self_col && neighbor_row == self_row)
+                continue;
+            int neighbor_index = neighbor_col + neighbor_row * p_army_t->num_cols;
+            queue(p_energy_queue, p_queue_length, neighbor_index);
+        }
+    }
+
+}
+
+/*
 * Allow an octopus army to do its thing and flash at you for a 
 * specified number of steps.
 * 
@@ -182,6 +220,7 @@ int OctopusArmy_flash(struct OctopusArmy *p_army_t, int num_steps)
     int max_queue_size = 9 * p_army_t->num_octopuses;
 
     for (int step = 0; step < num_steps; step++) {
+        int step_flashes = 0;
         /* allocate a queue on the stack for increasing energy levels
         An octopus can appear in the queue more than once, but not
         more than 9 times, since it gets 1 free flash per turn
@@ -198,8 +237,8 @@ int OctopusArmy_flash(struct OctopusArmy *p_army_t, int num_steps)
             int energy_index = dequeue(energy_queue, &queue_length);
             p_army_t->energy_levels[energy_index] += 1;
             if (p_army_t->energy_levels[energy_index] == 10) {
-                num_flashes++;
-                // TODO: find all neighbors and add them to the queue
+                step_flashes++;
+                charge_neighbors(p_army_t, energy_index, energy_queue, &queue_length);
             }
         }
 
@@ -208,7 +247,12 @@ int OctopusArmy_flash(struct OctopusArmy *p_army_t, int num_steps)
             if (p_army_t->energy_levels[octopus_index] > 9)
                 p_army_t->energy_levels[octopus_index] = 0;
         }
-        /*OctopusArmy_info(p_army_t);*/
+        // next four lines is all I had to add for part II
+        if (step_flashes == p_army_t->num_octopuses) {
+            printf("All flash together on step %d.\n", step + 1);
+            break;
+        }
+        num_flashes += step_flashes;
     }
 
     return num_flashes;
@@ -216,21 +260,19 @@ int OctopusArmy_flash(struct OctopusArmy *p_army_t, int num_steps)
 
 int main(int argc, char *argv[])
 {
-    unsigned queue_length = 5;
-    int test_queue[5] = { 11, 29, 23, 43, 35 };
-
-    // Testing of queue & dequeue functions
-    print_queue(test_queue, &queue_length);
-    printf("Dequeue: %d.\n", dequeue(test_queue, &queue_length));
-    printf("New Length: %d\n", queue_length);
-    queue(test_queue, &queue_length, 76);
-    print_queue(test_queue, &queue_length);
 
     struct OctopusArmy *test_army = Assemble("11test");
-    int num_steps = 2;
-    printf("%d flashes after %d steps.\n", OctopusArmy_flash(test_army, num_steps), num_steps);
+    int num_steps = 1000; // set arbitrarily high to solve part II
+    printf("Test Input: %d flashes after %d steps.\n",
+            OctopusArmy_flash(test_army, num_steps), num_steps);
     OctopusArmy_info(test_army);
     OctopusArmy_disperse(test_army);
+
+    struct OctopusArmy *data_army = Assemble("11data");
+    printf("Puzzle Input: %d flashes after %d steps.\n",
+            OctopusArmy_flash(data_army, num_steps), num_steps);
+    OctopusArmy_info(data_army);
+    OctopusArmy_disperse(data_army);
 
     return 0;
 }
