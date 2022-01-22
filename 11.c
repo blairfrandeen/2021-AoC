@@ -25,6 +25,9 @@ Part I Plan:
 #include <time.h>
 
 //#define PRINT_DEBUG // comment out to hide debugging
+#define CLOCK_INIT clock_t start_time, end_time;
+#define CLOCK_START start_time = clock();
+#define CLOCK_END end_time = clock(); printf("Executed in %.6f seconds.\n", (float)(end_time - start_time)/CLOCKS_PER_SEC);
 
 struct OctopusArmy {
     int num_rows;
@@ -128,6 +131,46 @@ void queue(int *p_queue, unsigned *p_queue_length, int element)
 }
 
 /*
+* Add an element to top of a stack
+* 
+* @param    p_stack             stack structure to add element to
+* @param    p_stack_length      pointer to length of the stack.
+*/
+void push(int *p_stack, unsigned *p_stack_length, int element)
+{
+    if (p_stack == NULL || p_stack_length == NULL) {
+        printf("Bad pointer sent to push().\n");
+        exit(-1);
+    } else if (*p_stack_length < 0) {
+        printf("push() tried to access stack with length %d.\n", *p_stack_length);
+        exit(-1);
+    }
+    p_stack[*p_stack_length] = element;
+    (*p_stack_length)++; // make space in the stack
+    /*printf("Push: %d to stack size %d.\n", element, *p_stack_length);*/
+}
+
+/*
+* Remove an element from the end of a queue and return it.
+*
+* @param    p_stack             stack structure to pop element from
+* @param    p_stack_length      pointer to length of the stack.
+* @retval                       value of last item in the stack.
+*/
+int pop(int *p_stack, unsigned *p_stack_length)
+{
+    if (p_stack == NULL || p_stack_length == NULL) {
+        printf("Bad pointer sent to pop().\n");
+        exit(-1);
+    } else if (*p_stack_length < 1) {
+        printf("pop() tried to access stack with length %d.\n", *p_stack_length);
+        exit(-1);
+    } 
+    (*p_stack_length)--; // decrease the length of the stack
+    return p_stack[(*p_stack_length)];
+}
+
+/*
 * DEBUG: Print a queue array
 *
 * @param    p_queue         pointer to queue to print
@@ -167,11 +210,11 @@ void OctopusArmy_info(struct OctopusArmy *p_army_t)
 *
 * @param    p_army_t        the army of octopuses
 * @param    octopus_index   the index within the army of the flasher
-* @param    p_energy_queue  The queue of octopuses to have their energy raised
-* @param    p_queue_length  the length of the energy queue
+* @param    p_energy_stack  The stack of octopuses to have their energy raised
+* @param    p_stack_length  the length of the energy stack
 */
 void charge_neighbors(struct OctopusArmy *p_army_t, int octopus_index,
-        int *p_energy_queue, unsigned *p_queue_length)
+        int *p_energy_stack, unsigned *p_stack_length)
 {
     if (p_army_t == NULL) {
         printf("Error: Bad pointer to OctopusArmy in charge_neighbors().\n");
@@ -193,7 +236,8 @@ void charge_neighbors(struct OctopusArmy *p_army_t, int octopus_index,
             if (neighbor_col == self_col && neighbor_row == self_row)
                 continue;
             int neighbor_index = neighbor_col + neighbor_row * p_army_t->num_cols;
-            queue(p_energy_queue, p_queue_length, neighbor_index);
+            if (p_army_t->energy_levels[neighbor_index] < 10)
+                push(p_energy_stack, p_stack_length, neighbor_index);
         }
     }
 
@@ -206,7 +250,7 @@ void charge_neighbors(struct OctopusArmy *p_army_t, int octopus_index,
 * @param    target_step     step at which we want to know the total number of flashes
 * @retval   total_flashes   total number of times the army flashed prior to synchronizing
 */
-int OctopusArmy_flash(struct OctopusArmy *p_army_t, int target_step)
+unsigned OctopusArmy_flash(struct OctopusArmy *p_army_t, int target_step)
 {
     if (p_army_t == NULL) {
         printf("Error: Bad pointer to OctopusArmy in OctopusArmy_flash().\n");
@@ -216,33 +260,27 @@ int OctopusArmy_flash(struct OctopusArmy *p_army_t, int target_step)
         printf("Error: Cannot flash for less than 1 step.\n");
         return 0;
     }
-    int total_flashes = 0;
-    // TODO: Fix this so it doesn't seg fault w/ big army
-    int max_queue_size = 9 * p_army_t->num_octopuses;
-
+    unsigned total_flashes = 0;
     int step_flashes = 0;
     int step = 0;
+
+    int *energy_stack = malloc(p_army_t->num_octopuses * sizeof(int*) * 9);
     while(step_flashes != p_army_t->num_octopuses) {
         step_flashes = 0;
 
-        /* allocate a queue on the stack for increasing energy levels
-        An octopus can appear in the queue more than once, but not
-        more than 9 times, since it gets 1 free flash per turn
-        and flashes from up to 8 neighbors */
-        int energy_queue[max_queue_size];
-        unsigned queue_length = 0;
+        unsigned stack_size = 0;
 
         // add all octopi to the energy increase queue
-        for (int octopus_index = 0; octopus_index < p_army_t->num_octopuses; octopus_index++)
-            queue(energy_queue, &queue_length, octopus_index);
+        for (int octopus_index = 0; octopus_index < p_army_t->num_octopuses; octopus_index++) {
+            push(energy_stack, &stack_size, octopus_index);
 
-        /*print_queue(energy_queue, &queue_length);*/
-        while(queue_length > 0) {
-            int energy_index = dequeue(energy_queue, &queue_length);
-            p_army_t->energy_levels[energy_index] += 1;
-            if (p_army_t->energy_levels[energy_index] == 10) {
-                step_flashes++;
-                charge_neighbors(p_army_t, energy_index, energy_queue, &queue_length);
+            while(stack_size > 0) {
+                int energy_index = pop(energy_stack, &stack_size);
+                p_army_t->energy_levels[energy_index] += 1;
+                if (p_army_t->energy_levels[energy_index] == 10) {
+                    step_flashes++;
+                    charge_neighbors(p_army_t, energy_index, energy_stack, &stack_size);
+                }
             }
         }
 
@@ -251,18 +289,16 @@ int OctopusArmy_flash(struct OctopusArmy *p_army_t, int target_step)
             if (p_army_t->energy_levels[octopus_index] > 9)
                 p_army_t->energy_levels[octopus_index] = 0;
         }
-        // next four lines is all I had to add for part II
-        /*if (step_flashes == p_army_t->num_octopuses) {*/
-            /*printf("All flash together on step %d.\n", step + 1);*/
-            /*break;*/
-        /*}*/
+
         total_flashes += step_flashes;
         step++;
         if (step == target_step) {
-            printf("Total of %d flashes after %d steps.\n", total_flashes, step);
+            printf("Total of %u flashes after %d steps.\n", total_flashes, step);
         }
     }
-    printf("Octopuses sync after %d steps.\n", step);
+    energy_stack = NULL;
+    free(energy_stack);
+    printf("Octopuses sync after %d steps and %u flashes.\n", step, total_flashes);
 
     return total_flashes;
 }
@@ -271,20 +307,37 @@ int main(int argc, char *argv[])
 {
 
     int num_steps = 100; // set arbitrarily high to solve part II
-    clock_t start_time = clock();
+    CLOCK_INIT
+    CLOCK_START
     struct OctopusArmy *test_army = Assemble("data/11test");
     printf("Test Input:\n");
     OctopusArmy_flash(test_army, num_steps);
     OctopusArmy_info(test_army);
     OctopusArmy_disperse(test_army);
+    CLOCK_END
 
-    struct OctopusArmy *data_army = Assemble("bigdata/11-100");
-    printf("Big Input (100x100):\n");
+    CLOCK_START
+    struct OctopusArmy *data_army = Assemble("data/11data");
+    printf("Puzzle Input:\n");
     OctopusArmy_flash(data_army, num_steps);
     OctopusArmy_info(data_army);
     OctopusArmy_disperse(data_army);
-    clock_t end_time = clock();
-    printf("Executed in %.6f seconds.\n", (float)(end_time - start_time)/CLOCKS_PER_SEC);
+    CLOCK_END
 
+    CLOCK_START
+    struct OctopusArmy *big_army = Assemble("bigdata/11-100");
+    printf("Big Input (100x100):\n");
+    OctopusArmy_flash(big_army, num_steps);
+    OctopusArmy_info(big_army);
+    OctopusArmy_disperse(big_army);
+    CLOCK_END
+
+    CLOCK_START
+    struct OctopusArmy *bigger_army = Assemble("bigdata/11-1000");
+    printf("Bigger Input (1000x1000):\n");
+    OctopusArmy_flash(bigger_army, num_steps);
+    OctopusArmy_info(bigger_army);
+    OctopusArmy_disperse(bigger_army);
+    CLOCK_END
     return 0;
 }
