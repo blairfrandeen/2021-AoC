@@ -22,6 +22,7 @@ Part I Plan:
 #include <stdint.h>
 #include <errno.h>
 #include <string.h>
+#include <time.h>
 
 //#define PRINT_DEBUG // comment out to hide debugging
 
@@ -199,28 +200,31 @@ void charge_neighbors(struct OctopusArmy *p_army_t, int octopus_index,
 }
 
 /*
-* Allow an octopus army to do its thing and flash at you for a 
-* specified number of steps.
+* Allow an octopus army to do its thing and flash at you
 * 
 * @param    p_army_t        pointer to the octopus army
-* @param    num_steps       number of steps to let them flash.
-* @retval   num_flashes     number of times the army flashed.
+* @param    target_step     step at which we want to know the total number of flashes
+* @retval   total_flashes   total number of times the army flashed prior to synchronizing
 */
-int OctopusArmy_flash(struct OctopusArmy *p_army_t, int num_steps)
+int OctopusArmy_flash(struct OctopusArmy *p_army_t, int target_step)
 {
     if (p_army_t == NULL) {
         printf("Error: Bad pointer to OctopusArmy in OctopusArmy_flash().\n");
         exit(-1);
     }
-    if (num_steps < 1) {
+    if (target_step < 1) {
         printf("Error: Cannot flash for less than 1 step.\n");
         return 0;
     }
-    int num_flashes = 0;
+    int total_flashes = 0;
+    // TODO: Fix this so it doesn't seg fault w/ big army
     int max_queue_size = 9 * p_army_t->num_octopuses;
 
-    for (int step = 0; step < num_steps; step++) {
-        int step_flashes = 0;
+    int step_flashes = 0;
+    int step = 0;
+    while(step_flashes != p_army_t->num_octopuses) {
+        step_flashes = 0;
+
         /* allocate a queue on the stack for increasing energy levels
         An octopus can appear in the queue more than once, but not
         more than 9 times, since it gets 1 free flash per turn
@@ -248,31 +252,39 @@ int OctopusArmy_flash(struct OctopusArmy *p_army_t, int num_steps)
                 p_army_t->energy_levels[octopus_index] = 0;
         }
         // next four lines is all I had to add for part II
-        if (step_flashes == p_army_t->num_octopuses) {
-            printf("All flash together on step %d.\n", step + 1);
-            break;
+        /*if (step_flashes == p_army_t->num_octopuses) {*/
+            /*printf("All flash together on step %d.\n", step + 1);*/
+            /*break;*/
+        /*}*/
+        total_flashes += step_flashes;
+        step++;
+        if (step == target_step) {
+            printf("Total of %d flashes after %d steps.\n", total_flashes, step);
         }
-        num_flashes += step_flashes;
     }
+    printf("Octopuses sync after %d steps.\n", step);
 
-    return num_flashes;
+    return total_flashes;
 }
 
 int main(int argc, char *argv[])
 {
 
-    int num_steps = 1000; // set arbitrarily high to solve part II
+    int num_steps = 100; // set arbitrarily high to solve part II
+    clock_t start_time = clock();
     struct OctopusArmy *test_army = Assemble("data/11test");
-    printf("Test Input: %d flashes after %d steps.\n",
-            OctopusArmy_flash(test_army, num_steps), num_steps);
+    printf("Test Input:\n");
+    OctopusArmy_flash(test_army, num_steps);
     OctopusArmy_info(test_army);
     OctopusArmy_disperse(test_army);
 
     struct OctopusArmy *data_army = Assemble("bigdata/11-100");
-    printf("Puzzle Input: %d flashes after %d steps.\n",
-            OctopusArmy_flash(data_army, num_steps), num_steps);
+    printf("Big Input (100x100):\n");
+    OctopusArmy_flash(data_army, num_steps);
     OctopusArmy_info(data_army);
     OctopusArmy_disperse(data_army);
+    clock_t end_time = clock();
+    printf("Executed in %.6f seconds.\n", (float)(end_time - start_time)/CLOCKS_PER_SEC);
 
     return 0;
 }
