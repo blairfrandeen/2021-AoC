@@ -400,10 +400,10 @@ int main(int argc, char *argv[])
     // number of segments corresponding to 7-segment display:
     const int num_segments[] = { 6, 2, 5, 5, 4, 5, 6, 3, 7, 6 };
     // corresponding digits == { 0  1  2  3  4  5  6  7  8  9 };
-    char datafile[] = "8data";
+    char datafile[] = "data/8data";
     if (argc > 1 && *argv[1] == 't') {
         printf("Test Mode!\n");
-        strcpy(datafile, "8test");
+        strcpy(datafile, "data/8test");
     }
     FILE *data = fopen(datafile, "r");
     char buffer[MAX_LEN];

@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
     // struct Line lines[50];
     // run_tests();
     struct Line lines[MAX_LINES];
-    int num_lines = read_data("5data", lines);
+    int num_lines = read_data("data/5data", lines);
     int grid[GRID_SIZE][GRID_SIZE];
     memset(grid, 0, GRID_SIZE * GRID_SIZE * sizeof(int));
 

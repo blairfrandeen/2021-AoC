@@ -357,9 +357,9 @@ int main(int argc, char *argv[])
 {
     printf("Part 1:\n");
     printf("Test Input ");
-    read_puzzle("10test"); 
+    read_puzzle("data/10test"); 
 
     printf("Full Input "); 
-    read_puzzle("10data"); 
+    read_puzzle("data/10data"); 
     return 0;
 }

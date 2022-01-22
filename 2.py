@@ -1,4 +1,4 @@
-dfile = open("depths.txt")
+dfile = open("data/depths.txt")
 depths = [int(line) for line in dfile.readlines()]
 # depths = [199,200,208,210,200,207,240,269,260,263]
 

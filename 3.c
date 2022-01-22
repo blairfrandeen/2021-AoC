@@ -16,7 +16,7 @@
 int main(int argc, char *argv[])
 {
     // get the data
-    char datafile[] = "3data.txt";
+    char datafile[] = "data/3data";
     FILE *data = fopen(datafile, "r");
     if (data == NULL) {
         printf("error, no data file\n");

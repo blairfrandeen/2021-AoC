@@ -261,14 +261,14 @@ int OctopusArmy_flash(struct OctopusArmy *p_army_t, int num_steps)
 int main(int argc, char *argv[])
 {
 
-    struct OctopusArmy *test_army = Assemble("11test");
     int num_steps = 1000; // set arbitrarily high to solve part II
+    struct OctopusArmy *test_army = Assemble("data/11test");
     printf("Test Input: %d flashes after %d steps.\n",
             OctopusArmy_flash(test_army, num_steps), num_steps);
     OctopusArmy_info(test_army);
     OctopusArmy_disperse(test_army);
 
-    struct OctopusArmy *data_army = Assemble("11data");
+    struct OctopusArmy *data_army = Assemble("bigdata/11-100");
     printf("Puzzle Input: %d flashes after %d steps.\n",
             OctopusArmy_flash(data_army, num_steps), num_steps);
     OctopusArmy_info(data_army);

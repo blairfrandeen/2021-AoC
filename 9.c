@@ -461,12 +461,12 @@ void Heightmap_info(struct Heightmap *map)
 
 int main(int argc, char *argv[])
 {
-    struct Heightmap *test_map = Heightmap_create("9test");
+    struct Heightmap *test_map = Heightmap_create("data/9test");
     Heightmap_info(test_map);
     Heightmap_destroy(test_map);
     free(test_map);
     
-    struct Heightmap *data_map = Heightmap_create("9data");
+    struct Heightmap *data_map = Heightmap_create("data/9data");
     Heightmap_info(data_map);
     Heightmap_destroy(data_map);
     free(data_map);

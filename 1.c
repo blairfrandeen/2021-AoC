@@ -4,7 +4,7 @@
 int main()
 {
     //int d[] = {199,200,208,210,100,207,240,269,260,263};
-    char file_name[] = "depths.txt";
+    char file_name[] = "data/depths.txt";
     char buff[8];
 
     FILE *file_pointer = fopen(file_name, "r");

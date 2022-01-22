@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
         char test[] = "16,1,2,0,4,2,7,1,2,14";
         num_inputs = split_input(test, input, ",");
     } else {
-        FILE *data = fopen("7data", "r");
+        FILE *data = fopen("data/7data", "r");
         assert(data != NULL);
 
         // set the buffer size to be the maximum number

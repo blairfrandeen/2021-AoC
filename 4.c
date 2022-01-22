@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
     int num_calls;
     int board_count = 0;
     struct Board boards[MAX_BOARDS];
-    read_data("4data", calls, &num_calls, boards, &board_count);
+    read_data("data/4data", calls, &num_calls, boards, &board_count);
     //run_tests();
 
     // start at turn 5, since impossible to win before this
