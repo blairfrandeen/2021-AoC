@@ -78,7 +78,8 @@ struct Heightmap *Heightmap_create(char *file_name)
     while (fgetc(input_file_handle) != '\n');
     size_t row_size = ftell(input_file_handle) - 1; // ignore the newline
 
-    fseek(input_file_handle, 0, SEEK_END);
+    fseek(input_file_handle, -1, SEEK_END);
+    /*printf("Last Character: %c", fgetc(input_file_handle));*/
     size_t file_size = ftell(input_file_handle);
     rewind(input_file_handle);
 
@@ -87,7 +88,8 @@ struct Heightmap *Heightmap_create(char *file_name)
     printf("Row size: %lu bytes\n", row_size);
 
     map->num_cols = row_size / sizeof(char);
-    map->num_rows = file_size / (row_size + 1); // add 1 to rowsize to count newlines
+    // TODO: Fix case where this not a newline at the end
+    map->num_rows = (file_size + 2) / (row_size + 1); // add 1 to rowsize to count newlines
     map->num_elements = map->num_cols * map->num_rows;
 
     // allocate array for heightmap

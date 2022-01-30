@@ -272,7 +272,8 @@ unsigned OctopusArmy_flash(struct OctopusArmy *p_army_t, int target_step)
 
         // add all octopi to the energy increase queue
         for (int octopus_index = 0; octopus_index < p_army_t->num_octopuses; octopus_index++) {
-            push(energy_stack, &stack_size, octopus_index);
+            if (p_army_t->energy_levels[octopus_index] < 10)
+                push(energy_stack, &stack_size, octopus_index);
 
             while(stack_size > 0) {
                 int energy_index = pop(energy_stack, &stack_size);
