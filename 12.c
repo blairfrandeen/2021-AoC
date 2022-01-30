@@ -20,15 +20,14 @@ Part 1 Plan:
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <stdint.h>
+#include <ctype.h>
 
 #define PRINT_DEBUG
 // arbitrarily large
 #define MAX_CAVES 127
 
 struct Cave {
-    char name[5];       // longest cave name is 'start'
-    uint8_t is_big;
+    char name[6];       // longest cave name is 'start'
 };
 
 struct Tunnel {
@@ -44,50 +43,13 @@ struct CaveNetwork {            // graph
 };
 
 /*
-* Create a cave given a name string.
-*
-* @param    cave_name       name of cave
-* @param    p_network_t     pointer to network that cave belongs to
-* @retval   0               cave created
-* @retval   1               no cave created
-*/
-int Cave_create(char cave_name[], struct CaveNetwork *p_network_t)
-{
-    // check if cave already exists in network
-    for (int cave_index = 0; cave_index < p_network_t->num_caves; cave_index++) {
-        // strcmp returns 0 if strings match
-        printf("Attempting to create %s in netowrk with %d caves.\n",
-                cave_name, p_network_t->num_caves);
-        if (!strcmp(p_network_t->caves[cave_index]->name, (char *)cave_name)) {
-            printf("Cave %s already exists!\n", cave_name);
-            return 1;
-        }
-    }
-
-    struct Cave *p_cave_t_ret = malloc(sizeof(struct Cave));
-    strcpy(p_cave_t_ret->name, (char *)cave_name);
-
-    // check if cave is big or not
-    // if first letter is upper case, we consider it big
-    if (cave_name[0] >= 'A' && cave_name[0] <= 'Z') {
-        p_cave_t_ret->is_big = 0;
-    } else {
-        p_cave_t_ret->is_big = 1;
-    }
-    p_network_t->caves[p_network_t->num_caves] = p_cave_t_ret;
-    p_network_t->num_caves++;
-
-    return 0;
-}
-
-/*
 * Read and input file into the buffer
 *
 * @param    file_name           input file to read
 * @param    p_file_size_ret     pointer to file size to return
 * @retval   input_buffer        file contents.
 */
-unsigned char* read_input(char file_name[], size_t *p_file_size_ret)
+char* read_input(char file_name[], size_t *p_file_size_ret)
 {
     FILE *file_handle = fopen(file_name, "r");
     if (file_handle == NULL) {
@@ -100,7 +62,7 @@ unsigned char* read_input(char file_name[], size_t *p_file_size_ret)
     rewind(file_handle);
 
     //printf("File size %ld.\n", file_size);
-    unsigned char *input_buffer = (unsigned char*)malloc(file_size + 1);
+    char *input_buffer = (char*)malloc(file_size + 1);
     if (input_buffer == NULL) {
         printf("Error allocating memory to input buffer. Buffer size %ld bytes.\n",
                 file_size);
@@ -125,6 +87,49 @@ unsigned char* read_input(char file_name[], size_t *p_file_size_ret)
 }
 
 /*
+* Determine whether a cave is big or small
+* @param    p_cave_t    pointer to cave
+* @retval   1           cave is big
+* @retval   0           cave is small
+*/
+int is_big(struct Cave *p_cave_t)
+{
+    return (isupper(p_cave_t->name[0]));
+}
+
+/*
+* Create a cave given a name string.
+*
+* @param    cave_name       name of cave
+* @param    p_network_t     pointer to network that cave belongs to
+* @retval   0               cave created
+* @retval   1               no cave created
+*/
+int Cave_create(char cave_name[], int name_len, struct CaveNetwork *p_network_t)
+{
+    // check if cave already exists in network
+    for (int cave_index = 0; cave_index < p_network_t->num_caves;
+            cave_index++) {
+        // strcmp returns 0 if strings match
+        if (!strncmp(p_network_t->caves[cave_index]->name,
+                    (char *)cave_name, name_len)) 
+            return 1;
+    }
+
+    struct Cave *p_cave_t_ret = malloc(sizeof(struct Cave));
+    if (p_cave_t_ret == NULL) {
+        printf("Error allocating data for cave: %s\n", strerror(errno));
+        exit(-1);
+    }
+    strcpy(p_cave_t_ret->name, cave_name);
+
+    p_network_t->caves[p_network_t->num_caves] = p_cave_t_ret;
+    p_network_t->num_caves++;
+
+    return 0;
+}
+
+/*
 * Read an input file of connections to create a cave network.
 *
 * @param    file_name           data file to open
@@ -134,9 +139,10 @@ struct CaveNetwork *Network_create(char file_name[])
 {
     // read the input file
     size_t file_size;
-    unsigned char *input_buffer = read_input(file_name, &file_size);
+    char *input_buffer = read_input(file_name, &file_size);
     if (input_buffer == NULL || file_size == 0) {
-        printf("Error reading file %s: %s.\n", file_name, strerror(errno));
+        printf("Error reading file %s: %s.\n", 
+                file_name, strerror(errno));
         exit(-1);
     }
 
@@ -145,21 +151,28 @@ struct CaveNetwork *Network_create(char file_name[])
     p_network_t_ret->num_caves = 0;
     p_network_t_ret->num_tunnels = 0;
 
-    unsigned char *cave_name = input_buffer;
+    char *p_cave_name = input_buffer;
 
-    while (*(input_buffer++) != 0) {
-        if (*input_buffer == '-' || *input_buffer == '\n') {
-            int name_len = input_buffer - cave_name; 
-            char *new_name = strncpy(new_name, (char *)cave_name, name_len);
-            Cave_create(new_name, p_network_t_ret);
-            cave_name = input_buffer + 1;
+    while (*input_buffer != 0) {
+        if (*input_buffer == '\n' || *input_buffer == '-') {
+            // determine the length of the name
+            int name_len = input_buffer - p_cave_name;
+            // reserve memory for the cave name
+            char cave_name[name_len];
+            // copy the name into memory
+            strncpy(cave_name, p_cave_name, name_len);
+            // add null terminator
+            cave_name[name_len] = '\0';
+            // create a new cave
+            Cave_create(cave_name, name_len, p_network_t_ret);
+            // move to the next cave
+            p_cave_name = input_buffer + 1;
         }
-
+        input_buffer++;
     }
 
     return p_network_t_ret;
 }
-
 
 /*
 * Free the data from a cave network
@@ -192,13 +205,15 @@ void CaveNetwork_info(struct CaveNetwork *p_network)
     printf("Caves: ");
     for (int cave_index = 0; cave_index < p_network->num_caves; cave_index++) {
         printf("%s ", p_network->caves[cave_index]->name);
+        if (is_big(p_network->caves[cave_index]))
+            printf("(BIG) ");
     }
     printf("\n");
 }
 
 int main(int argc, char *argv[])
 {
-    struct CaveNetwork *test = Network_create("data/12small");
+    struct CaveNetwork *test = Network_create("data/12med");
     CaveNetwork_info(test);
     Network_destroy(test);
     return 0;
