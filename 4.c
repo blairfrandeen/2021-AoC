@@ -1,12 +1,21 @@
+/* Advent of Code day 4
+   https://adventofcode.com/2021/day/4
+
+Synopsis: Bingo game with a giant squid. Given a sequence
+of calls, and a sequence of bingo boards, determine which board
+will win. Diagonals don't count.
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <stdint.h>
 
+#define PRINT_DEBUG
 // global for row/column length
 #define SET_SIZE 5
-#define MAX_CALLS 255
-#define MAX_BOARDS 255
+#define MAX_CALLS 900
+#define MAX_BOARDS 900
 /* Assumptions:
     Given input file where first line is comma separated list of
     values.
@@ -27,11 +36,19 @@
             and a number of turns
 */
 
-int is_in(int element, int array[], int arr_size) 
+/*
+* Determine if an element is in an array
+*
+* @param    element     the element to check for
+* @param    p_array     pointer to the array to look in
+* @param    array_size  number of elements in the array
+* @retval   0           element not in the array
+* @retval   1           element is in array
+*/
+int is_in(int element, int *p_array, int arr_size) 
 {
-    int i;
-    for (i = 0; i < arr_size; i++) {
-        if (array[i] == element) {
+    for (int i = 0; i < arr_size; i++) {
+        if (p_array[i] == element) {
             return 1;
         }
     }
@@ -41,8 +58,7 @@ int is_in(int element, int array[], int arr_size)
 int is_complete(int Set[], int calls[], int turn)
 {
     int counter = 0;
-    int i;
-    for (i = 0; i < turn; i++) {
+    for (int i = 0; i < turn; i++) {
         if (is_in(calls[i], Set, SET_SIZE)) {
             counter++;
             if (counter == SET_SIZE) {
@@ -63,13 +79,36 @@ struct Board {
     int winning_turn;
 };
 
-int Board_complete(struct Board *brd, int calls[], int turn)
+struct Card { // bingo card to replace board struct
+    uint8_t *numbers;
+    uint8_t card_size;
+    unsigned winning_turn;
+};
+
+struct Card *Card_create(uint8_t card_size)
 {
-    int r;
-    for (r = 0; r < SET_SIZE; r++) {
-        if (is_complete(brd->rows[r].numbers, calls, turn) ||
-                is_complete(brd->cols[r].numbers, calls, turn)) {
-            brd->winning_turn = turn;
+    struct Card *card = malloc(sizeof(struct Card));
+    card->winning_turn = 0;
+    card->card_size = card_size;
+    card->numbers = malloc(card_size * card_size * sizeof(uint8_t*));
+
+    return card;
+}
+/*
+* Determine whether a board is complete (a winner)
+*
+* @param    p_brd_t     pointer to the Board to check
+* @param    p_calls     pointer to the array of calls
+* @param    turn        turn number we're on
+* @retval   0           board is not complete
+* @retval   1           board is complete
+*/
+int Board_complete(struct Board *p_brd_t, int *p_calls, int turn)
+{
+    for (int r = 0; r < SET_SIZE; r++) {
+        if (is_complete(p_brd_t->rows[r].numbers, p_calls, turn) ||
+                is_complete(p_brd_t->cols[r].numbers, p_calls, turn)) {
+            p_brd_t->winning_turn = turn;
             return 1;
         }
     }
@@ -127,13 +166,21 @@ int split_str(int array[], char str[], char delimeter[])
     return splits;
 }
 
-void print_array(int array[], int num_elements) {
-    int i;
+/*
+* display the contents of an integer array
+*
+* @param    p_array         pointer to the array to display
+* @param    num_elements    number of elemnts to disply
+*/
+void print_array(int *p_array, int num_elements)
+{
+#ifdef PRINT_DEBUG
     printf("[ ");
-    for (i = 0; i < num_elements; i++) {
-        printf("%d ", array[i]);
+    for (int i = 0; i < num_elements; i++) {
+        printf("%d ", p_array[i]);
     }
     printf("]\n");
+#endif
 }
 
 void fill_cols(struct Board *brd)
@@ -209,15 +256,52 @@ void run_tests()
     print_array(split_test, split_len);
 }
 
-void read_data(char data_file[], int calls[], int *num_calls, 
-        struct Board boards[], int *board_count)
+/*
+* read from a data file a list of calls, and all bingo boards.
+*
+* @param    data_file       the data file to read from
+* @param    num_calls       the number of calls expected
+* @param    p_calls         pointer to the list of calls
+* @param    num_boards      the number of boards expected
+* @param    p_boards_t      pointer to list of boards
+*/
+void read_data(char data_file[], int *p_calls, int num_calls, 
+        struct Board boards[], int num_boards)
 {
     FILE *data = fopen(data_file, "r");
     assert(data != NULL);
 
-    char buffer[MAX_CALLS];
-    *num_calls = split_str(calls, fgets(buffer, sizeof(buffer), data), ",");
-//    print_array(calls, num_calls);
+    int *calls = malloc(num_calls * sizeof(int *));
+
+    char current_input;
+    int current_num = 0;
+    int lines_read = 0;
+    int calls_found = 0;
+    /*int cards_found = 0;*/
+    /*int card_index = 0;*/
+
+    // read through the input file one character at a time
+    while((current_input = fgetc(data)) != EOF) {
+        if (current_input < '0' || current_input > '9') {
+            if (lines_read == 0) {
+                p_calls[calls_found] = current_num;
+                calls_found++;
+            } else {
+            }
+            if (current_input == '\n') lines_read++;
+
+            current_num = 0;
+            continue;
+        }
+        current_num = current_num * 10 + current_input - '0';
+    }
+
+    assert(num_calls == calls_found);
+
+    printf("Num calls: %d\n", num_calls);
+    print_array(p_calls, num_calls);
+
+/* OLD VERSION
 
     int set_count = 0;
     int set_arr[SET_SIZE];
@@ -228,15 +312,15 @@ void read_data(char data_file[], int calls[], int *num_calls,
     boards[0] = *Board_create();
     while(fgets(buffer, sizeof(buffer), data) != NULL) {
         if (buffer[0] == '\n') {
-            fill_cols(&boards[*board_count]);
-            *board_count += 1;
-            boards[*board_count] = *Board_create();
+            fill_cols(&boards[num_boards]);
+            num_boards += 1;
+            boards[num_boards] = *Board_create();
             set_count = 0;
             continue;
         } else {
             row_len = split_str(set_arr, buffer, " ");
-            assert(row_len == 5);
-            boards[*board_count].rows[set_count] = *Set_create(set_arr);
+            assert(row_len == SET_SIZE);
+            boards[num_boards].rows[set_count] = *Set_create(set_arr);
             // printf("%d-%d: ", board_count, set_count);
             // Set_print(&set_tmp);
             // Board_print(&boards[board_count]);
@@ -245,16 +329,26 @@ void read_data(char data_file[], int calls[], int *num_calls,
         }
     }
 
-    /*printf("\n");*/
-    /*Board_print(&boards[2]);*/
-    /*printf("\n");*/
-    /*Set_print(&boards[1].cols[4]);*/
+    printf("\n");
+    Board_print(&boards[2]);
+    printf("\n");
+    Set_print(&boards[1].cols[4]);
     fclose(data);
+*/
 }
 
-int score(struct Board *brd, int calls[], int turn)
+/*
+* Calculate the score for a bingo board based on the
+* uncalled numbers
+*
+* @param    p_brd_t pointer to the board to calculate for
+* @param    calls   the array of calls so far
+* @param    turn    the turn we are on
+* @retval   result  the resulting score
+*/
+int score(struct Board *p_brd_t, int calls[], int turn)
 {
-    int uncalled = sum_uncalled(brd, calls, turn);
+    int uncalled = sum_uncalled(p_brd_t, calls, turn);
     printf("Sum of uncalled: %d\n", uncalled);
     printf("Last call: %d\n", calls[turn - 1]);
     int result = calls[turn - 1] * uncalled;
@@ -265,13 +359,20 @@ int score(struct Board *brd, int calls[], int turn)
 
 int main(int argc, char *argv[])
 {
-    int calls[MAX_CALLS];
-    int num_calls;
-    int board_count = 0;
-    struct Board boards[MAX_BOARDS];
-    read_data("data/4data", calls, &num_calls, boards, &board_count);
+    /*int *calls = NULL;*/
+    /*int num_calls = 27;*/
+    int *calls;
+    printf("Address of calls: %p\n", &calls);
+    /*int board_count = 0;*/ struct Board boards[MAX_BOARDS];
+    // puzzle input
+    read_data("data/4test", calls, 27, boards, 3);
+    printf("calls[2]: %d\n", calls[2]);
+    /*read_data("data/4data", calls, 100, boards, 125);*/
+    /*read_data("bigdata/4-900-15", calls, 900, boards, 900);*/
+    /*read_data("bigdata/4-3600-30", calls, 3600, boards, 3600);*/
     //run_tests();
 
+    /* OLD VERSION
     // start at turn 5, since impossible to win before this
     int turn = 4;
     int b;
@@ -299,6 +400,7 @@ int main(int argc, char *argv[])
             printf("no winner!\n");
         }
     }
+    */
 
     return 0;
 }
