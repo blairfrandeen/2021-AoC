@@ -14,6 +14,15 @@ Part 1 Plan:
     the input file should generate a graph struct, which consists of
     an array of nodes and an array of connections.
 
+    start
+    /   \
+c--A-----b--d
+    \   /
+     end
+   From start, two paths: start-A, start-b
+   From A, 3 paths: start-A-c, start-A-b, start-Aend
+   From b, 3 paths: start-b-A, start-b-d, start-b-end
+   from d, 1 path: start-b-d-b - this should invalidate, since b visited twice
 */
 
 #include <stdio.h>
@@ -22,22 +31,18 @@ Part 1 Plan:
 #include <errno.h>
 #include <ctype.h>
 
-#define PRINT_DEBUG
+// #define PRINT_DEBUG
 // arbitrarily large
-#define MAX_CAVES 127
+#define MAX_CAVES 128
 
 struct Cave {
-    char name[6];       // longest cave name is 'start'
-};
-
-struct Tunnel {
-    // a tunnel can only connect two caves
-    struct Cave caves[2];
+    char name[8];       // longest cave name is 'start'
+    int num_tunnels;
+    int tunnels[MAX_CAVES - 1];
 };
 
 struct CaveNetwork {            // graph
     struct Cave *caves[MAX_CAVES];         // nodes
-    int *tunnels;           // connections
     unsigned num_caves;
     unsigned num_tunnels;
 };
@@ -130,11 +135,48 @@ int Cave_create(char cave_name[], int name_len, struct CaveNetwork *p_network_t)
         exit(-1);
     }
     strcpy(p_cave_t_ret->name, cave_name);
+    p_cave_t_ret->num_tunnels = 0;
 
     p_network_t->caves[p_network_t->num_caves] = p_cave_t_ret;
     p_network_t->num_caves++;
 
     return cave_index;
+}
+
+/*
+* Given a CaveNetwork and a list of connections, assign connections
+* to the Cave structs, so that a Cave may be queried for its connections
+* 
+* @param    p_network_t     the cave network
+* @param    p_tunnels       An integer array of cave indices representing tunnels.
+*                           Pairs of indices represent connections
+* @retval   0               Success
+* @retval   1               Error assigning tunnels
+*/
+void Network_assign_tunnels(struct CaveNetwork *p_network_t, int *p_tunnels)
+{
+    if (p_network_t == NULL) {
+        printf("Error: NULL Cave Network: %s\n", strerror(errno));
+        exit(-1);
+    }
+    if ((*p_tunnels % 2) != 0) {
+        printf("Error: Uneven number of tunnels!\n");
+        exit(-1);
+    }
+
+    // loop through the tunnels array two at a time
+    for (int i = 0; i < p_network_t->num_tunnels * 2; i += 2) {
+        // create pointers to the cave pairs
+        struct Cave *p_cave_1 = p_network_t->caves[p_tunnels[i]];
+        struct Cave *p_cave_2 = p_network_t->caves[p_tunnels[i+1]];
+
+        // Assign tunnels to opposite caves
+        p_cave_1->tunnels[p_cave_1->num_tunnels] = p_tunnels[i+1];
+        p_cave_2->tunnels[p_cave_2->num_tunnels] = p_tunnels[i];
+
+        p_cave_1->num_tunnels++;
+        p_cave_2->num_tunnels++;
+    }
 }
 
 /*
@@ -159,17 +201,27 @@ struct CaveNetwork *Network_create(char file_name[])
     p_network_t_ret->num_caves = 0;
     p_network_t_ret->num_tunnels = num_rows;
 
+    // create "start" and "end" caves to ensure they
+    // are at known indices
+    Cave_create("start", 5, p_network_t_ret);   // index 0
+    Cave_create("end", 3, p_network_t_ret);     // index 1
+
     char *p_cave_name = input_buffer;
-    int index = 0;
+
     // connections array sized such that each
     // pair of indices (e.g. 0-1 and 2-3) represents a connection
-    p_network_t_ret->tunnels = malloc(p_network_t_ret->num_tunnels * 2 * sizeof(int));
-    int name_len;
 
-    while (*input_buffer != 0) {
-        if (!isupper(*input_buffer) && !islower(*input_buffer)) {
+    // each row in the data file represents one tunnel between two caves
+    int tunnels[2 * num_rows];
+    int tunnel_index = 0;
+
+    // preserve the input_buffer pointer so we can free it
+    char *next_char = input_buffer;
+
+    while (*next_char != 0) {
+        if (!isupper(*next_char) && !islower(*next_char)) {
             // determine the length of the name
-            name_len = input_buffer - p_cave_name;
+            int name_len = next_char - p_cave_name;
             // reserve memory for the cave name
             char cave_name[name_len];
             // copy the name into memory
@@ -177,13 +229,18 @@ struct CaveNetwork *Network_create(char file_name[])
             // add null terminator
             cave_name[name_len] = '\0';
             // create a new cave
-            p_network_t_ret->tunnels[index++] = Cave_create(cave_name,
+            tunnels[tunnel_index++] = Cave_create(cave_name,
                     name_len, p_network_t_ret);
             // move to the next cave
-            p_cave_name = input_buffer + 1;
+            p_cave_name = next_char + 1;
         }
-        input_buffer++;
+        next_char++;
     }
+
+    free(input_buffer);
+
+    // assign the tunnels to the caves
+    Network_assign_tunnels(p_network_t_ret, tunnels);
 
     return p_network_t_ret;
 }
@@ -195,11 +252,11 @@ struct CaveNetwork *Network_create(char file_name[])
 */
 void Network_destroy(struct CaveNetwork *p_network)
 {
-    /*p_network->caves = NULL;*/
-    /*free(p_network->caves);*/
-    /*p_network->tunnels = NULL;*/
-    /*free(p_network->tunnels);*/
-    p_network = NULL;
+    //free(p_network->tunnels);
+    for (int cave_index = 0; cave_index < p_network->num_caves;
+            cave_index++) {
+        free(p_network->caves[cave_index]);
+    }
     free(p_network);
 }
 
@@ -210,6 +267,7 @@ void Network_destroy(struct CaveNetwork *p_network)
 */
 void CaveNetwork_info(struct CaveNetwork *p_network)
 {
+#ifdef PRINT_DEBUG
     if (p_network == NULL) {
         printf("Bad network requested.\n");
         exit(-1);
@@ -223,16 +281,96 @@ void CaveNetwork_info(struct CaveNetwork *p_network)
             printf("(BIG) ");
     }
     printf("\n");
-    for (int i = 0; i < p_network->num_tunnels * 2; i += 2) {
-        printf("%s -> %s\n", p_network->caves[p_network->tunnels[i]]->name,
-                p_network->caves[p_network->tunnels[i+1]]->name);
+    for (int i = 0; i < p_network->num_caves; i++) {
+        printf("Cave %s connected to: ", p_network->caves[i]->name);
+        for (int j = 0; j < p_network->caves[i]->num_tunnels; j++) {
+            printf("%s ", p_network->caves[p_network->caves[i]->tunnels[j]]->name);
+        }
+        printf("\n");
     }
+#endif
+}
+
+/*
+* Determine whether a cave index is already in a path
+*
+* @param    index           cave index to check for
+* @param    p_path          path to look in
+* @param    p_path_length   length of path
+*/
+int is_in_path(int index, int *p_path, int *p_path_length)
+{
+    for (int p_path_index = 0; p_path_index < *p_path_length; p_path_index++) {
+        if (index == p_path[p_path_index])
+            return 1;
+    }
+    return 0;
+}
+
+ /*
+* Search a cave network for all possible paths from start to end
+*
+* @param    start_index     index at which to start the search
+* @param    end_index       index at which paths complete
+* @param    p_current_path    current path being investigated
+* @param    p_path_length     length of current path
+* @param    p_num_paths       number of paths through the network
+* @param    p_network_t     pointer to the cave network
+*/
+void Network_find_paths(int start_index, int end_index, int *p_current_path,
+        int *p_path_length, int *p_num_paths, struct CaveNetwork *p_network_t)
+{
+    struct Cave *p_start = p_network_t->caves[start_index];
+
+    if (start_index != end_index) {
+        for (int tunnel_index = 0; tunnel_index < p_start->num_tunnels; tunnel_index++) {
+            if (is_in_path(p_start->tunnels[tunnel_index], p_current_path, p_path_length) &&
+                    !is_big(p_network_t->caves[p_start->tunnels[tunnel_index]]))
+                continue;
+            p_current_path[(*p_path_length)++] = p_start->tunnels[tunnel_index];
+            Network_find_paths(p_start->tunnels[tunnel_index], 1, p_current_path,
+                    p_path_length, p_num_paths, p_network_t);
+            *p_path_length -= 1;
+        }
+    } else {
+#ifdef PRINT_DEBUG
+        printf("Found path: ");
+        for (int path_index = 0; path_index < *p_path_length; path_index++) {
+            printf("%s ", p_network_t->caves[p_current_path[path_index]]->name);
+        }
+        printf("\n");
+#endif
+        (*p_num_paths)++;
+    }
+}
+
+/*
+* Count the paths through a cave network
+*
+* @param    data_file   data file to open
+* @retval   num_paths   total number of paths
+*/
+int Network_count_paths(char data_file[])
+{
+
+    struct CaveNetwork *network = Network_create(data_file);
+    CaveNetwork_info(network);
+    int path[MAX_CAVES];
+    int path_length = 1;
+    path[0] = 0;
+    int num_paths = 0;
+    Network_find_paths(0, 1, path, &path_length, &num_paths, network);
+    Network_destroy(network);
+    printf("There are %d paths through network described by '%s'.\n",
+            num_paths, data_file);
+    return num_paths;
 }
 
 int main(int argc, char *argv[])
 {
-    struct CaveNetwork *test = Network_create("data/12med");
-    CaveNetwork_info(test);
-    Network_destroy(test);
+    Network_count_paths("data/12small");
+    Network_count_paths("data/12med");
+    Network_count_paths("data/12large");
+    Network_count_paths("data/12puzzle");
     return 0;
 }
