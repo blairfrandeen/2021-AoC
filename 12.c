@@ -31,7 +31,7 @@ c--A-----b--d
 #include <errno.h>
 #include <ctype.h>
 
-// #define PRINT_DEBUG
+#define PRINT_DEBUG
 // arbitrarily large
 #define MAX_CAVES 128
 
@@ -318,21 +318,41 @@ int is_in_path(int index, int *p_path, int *p_path_length)
 * @param    p_network_t     pointer to the cave network
 */
 void Network_find_paths(int start_index, int end_index, int *p_current_path,
-        int *p_path_length, int *p_num_paths, struct CaveNetwork *p_network_t)
+        int *p_path_length, int *p_num_paths, int *p_small_visit, struct CaveNetwork *p_network_t)
 {
+    // pointer to cave we're starting at
     struct Cave *p_start = p_network_t->caves[start_index];
 
+    // keep recursing as long as we're not in the final cave
     if (start_index != end_index) {
+        // look at all the caves connected to this one
         for (int tunnel_index = 0; tunnel_index < p_start->num_tunnels; tunnel_index++) {
-            if (is_in_path(p_start->tunnels[tunnel_index], p_current_path, p_path_length) &&
-                    !is_big(p_network_t->caves[p_start->tunnels[tunnel_index]]))
-                continue;
-            p_current_path[(*p_path_length)++] = p_start->tunnels[tunnel_index];
-            Network_find_paths(p_start->tunnels[tunnel_index], 1, p_current_path,
-                    p_path_length, p_num_paths, p_network_t);
+            // pointer to the cave we're looking towards
+            int next_index = p_start->tunnels[tunnel_index];
+            struct Cave *p_next = p_network_t->caves[next_index];
+            // if we've already been there
+            if (is_in_path(next_index, p_current_path, p_path_length)) {
+                // skip if it's a start or end cave
+                if (next_index == 0 || next_index == 1)
+                    continue;
+                // if it's a small cave
+                if (!is_big(p_next)) {
+                    //if (*p_small_visit == 1)
+                        continue;
+                    //*p_small_visit = 1;
+                }
+            }
+            // otherwise add the connected cave to the path
+            p_current_path[(*p_path_length)++] = next_index;
+
+            // search starting at the next cave
+            Network_find_paths(next_index, 1, p_current_path,
+                    p_path_length, p_num_paths, p_small_visit, p_network_t);
+
+            // once the recursion finishes, go back to the previous position
             *p_path_length -= 1;
         }
-    } else {
+    } else { // if we're at the last cave
 #ifdef PRINT_DEBUG
         printf("Found path: ");
         for (int path_index = 0; path_index < *p_path_length; path_index++) {
@@ -340,7 +360,8 @@ void Network_find_paths(int start_index, int end_index, int *p_current_path,
         }
         printf("\n");
 #endif
-        (*p_num_paths)++;
+        (*p_small_visit) = 0;   // reset small visit counter
+        (*p_num_paths)++;       // add to the count of paths
     }
 }
 
@@ -356,21 +377,24 @@ int Network_count_paths(char data_file[])
     struct CaveNetwork *network = Network_create(data_file);
     CaveNetwork_info(network);
     int path[MAX_CAVES];
-    int path_length = 1;
     path[0] = 0;
+    int path_length = 1;
     int num_paths = 0;
-    Network_find_paths(0, 1, path, &path_length, &num_paths, network);
-    Network_destroy(network);
+    int small_visit = 0;
+
+    Network_find_paths(0, 1, path, &path_length, &num_paths, &small_visit, network);
     printf("There are %d paths through network described by '%s'.\n",
             num_paths, data_file);
+
+    Network_destroy(network);
     return num_paths;
 }
 
 int main(int argc, char *argv[])
 {
     Network_count_paths("data/12small");
-    Network_count_paths("data/12med");
-    Network_count_paths("data/12large");
-    Network_count_paths("data/12puzzle");
+    //Network_count_paths("data/12med");
+    //Network_count_paths("data/12large");
+    //Network_count_paths("data/12puzzle");
     return 0;
 }
