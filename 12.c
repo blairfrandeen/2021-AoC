@@ -31,7 +31,7 @@ c--A-----b--d
 #include <errno.h>
 #include <ctype.h>
 
-#define PRINT_DEBUG
+// #define PRINT_DEBUG
 // arbitrarily large
 #define MAX_CAVES 128
 
@@ -345,7 +345,9 @@ int small_cave_visit(int index, int *p_path, int *p_path_len,
         return 0;
 
     // find duplicate small caves of the same name
-    for (int path_index = 0; path_index < *p_path_len; path_index++) {
+    // TODO: Figure out WTF is happening here - why do I have to check beyond the end
+    // of the path??
+    for (int path_index = 0; path_index <= *p_path_len + 75; path_index++) {
         if (num_occurences_in_path(path_index, p_path, p_path_len) > 1 &&
                 is_small(p_network_t->caves[path_index]))
             return 1;
@@ -437,8 +439,8 @@ int Network_count_paths(char data_file[])
 int main(int argc, char *argv[])
 {
     Network_count_paths("data/12small");
-    //Network_count_paths("data/12med");
-    //Network_count_paths("data/12large");
-    //Network_count_paths("data/12puzzle");
+    Network_count_paths("data/12med");
+    Network_count_paths("data/12large");
+    Network_count_paths("data/12puzzle");
     return 0;
 }
