@@ -31,6 +31,7 @@ c--A-----b--d
 #include <errno.h>
 #include <ctype.h>
 
+#define WTF 25
 // #define PRINT_DEBUG
 // arbitrarily large
 #define MAX_CAVES 128
@@ -347,7 +348,7 @@ int small_cave_visit(int index, int *p_path, int *p_path_len,
     // find duplicate small caves of the same name
     // TODO: Figure out WTF is happening here - why do I have to check beyond the end
     // of the path??
-    for (int path_index = 0; path_index <= *p_path_len + 75; path_index++) {
+    for (int path_index = 0; path_index < *p_path_len + WTF; path_index++) {
         if (num_occurences_in_path(path_index, p_path, p_path_len) > 1 &&
                 is_small(p_network_t->caves[path_index]))
             return 1;
