@@ -25,7 +25,7 @@ NBCCNBBBCBHCB
 
 #define MAX_TEMPLATE 127
 #define MAX_ELEMENTS 26     // only A-Z allowed
-#define RULE_SIZE 8         // number of chars per rules (AB -> C\n)
+#define MAX_RULES 255         // number of chars per rules (AB -> C\n)
 
 /* Each pair rule has three attributes:
    Its name (i.e. "NC")
@@ -46,6 +46,8 @@ typedef struct polymer_t {
     int num_elements;
     char elements[MAX_ELEMENTS];
     unsigned element_counts[MAX_ELEMENTS];
+
+    char template[MAX_TEMPLATE];
 } polymer_t;
 
 int find_rule_index(polymer_t *polymer, char pair[])
@@ -65,7 +67,7 @@ void create_rule(polymer_t *polymer, char pair[], char insertion)
     if (rule_index >= 0) {
         polymer->rules[rule_index]->insertion = insertion;
     } else {
-        pairrule_t *rule = (pairrule_t*)malloc(sizeof(pairrule_t*));
+        pairrule_t *rule = (pairrule_t*)malloc(sizeof(pairrule_t));
         strcpy(rule->pair, pair);
         rule->insertion = insertion;
         rule->child1 = rule->child2 = NULL;
@@ -85,6 +87,7 @@ void link_rules(polymer_t *pm)
             (struct pairrule_t*)pm->rules[find_rule_index(pm, child_1)];
         pm->rules[rule_index]->child2 = 
             (struct pairrule_t*)pm->rules[find_rule_index(pm, child_2)];
+        pm->rule_counts[rule_index] = 0;
     }
 }
 
@@ -127,14 +130,41 @@ void print_polymer(polymer_t *pm)
 * @param    n               length of template string
 * @retval   pm              pointer to the template
 */
-polymer_t* create_polymer(char template[], int template_length)
+polymer_t* create_polymer(char template[], size_t *template_length, char *input_buffer)
 {
     polymer_t *pm = malloc(sizeof(polymer_t));
     pm->num_elements = 0;
     pm->num_rules = 0;
+    strcpy(pm->template, template);
 
-    for (int template_index = 0; template_index < template_length; template_index++) {
+
+    pm->rules = (pairrule_t**)malloc(sizeof(pairrule_t*) * MAX_RULES);
+    pm->rule_counts = (unsigned *)malloc(sizeof(unsigned*) * MAX_RULES);
+    char delimeters[] = " ->\n";
+    char *token = NULL;
+    token = strtok(input_buffer, delimeters);
+    while(token != NULL) {
+        char rule_pair[8];
+        strcpy(rule_pair, token);
+        token = strtok(NULL, delimeters);
+        char rule_insertion = token[0];
+        create_rule(pm, rule_pair, rule_insertion);
+        pm->num_rules++;
+        token = strtok(NULL, delimeters);
+        //printf("%s -> %c\n", rule_pair, rule_insertion);
+    }
+    free(input_buffer);
+
+    link_rules(pm);
+
+    for (int template_index = 0; template_index < *template_length; template_index++) {
         char element = template[template_index];
+        if (template_index < (*template_length - 1)) {
+            char next = template[template_index + 1];
+            char pair[3] = { element, next, '\0' };
+            pm->rule_counts[find_rule_index(pm, pair)]++;
+        }
+
         int current_index = element_index(element, pm);
         if (current_index >= 0) {
             pm->element_counts[current_index]++;
@@ -149,6 +179,42 @@ polymer_t* create_polymer(char template[], int template_length)
     return pm;
 }
 
+void grow_polymer(polymer_t *pm, int num_steps)
+{
+    for (int step = 0; step < num_steps; step++) {
+        unsigned new_element_counts[pm->num_elements];
+        memset(new_element_counts, 0, pm->num_elements * sizeof(unsigned));
+        unsigned new_rule_counts[pm->num_rules];
+        memset(new_rule_counts, 0, pm->num_rules * sizeof(unsigned));
+
+        for (int rule_index = 0; rule_index < pm->num_rules; rule_index++) {
+            pairrule_t *current_rule = pm->rules[rule_index];
+            unsigned num_current_rule = pm->rule_counts[rule_index];
+            int new_element_index, new_rule_index;
+            if ((new_element_index = element_index(current_rule->insertion, pm)) >= 0) {
+                new_element_counts[new_element_index] += num_current_rule;
+            } else {
+                pm->elements[pm->num_elements] = current_rule->insertion;
+                pm->element_counts[pm->num_elements] = 0;
+                new_element_counts[pm->num_elements] = num_current_rule;
+                pm->num_elements++;
+            }
+            if ((new_rule_index = find_rule_index(pm, current_rule->child1->pair)) >= 0)
+                new_rule_counts[new_rule_index] += num_current_rule;
+            if ((new_rule_index = find_rule_index(pm, current_rule->child2->pair)) >= 0)
+                new_rule_counts[new_rule_index] += num_current_rule;
+        }
+
+        for (int i = 0; i < pm->num_elements; i++) {
+            pm->element_counts[i] += new_element_counts[i];
+        }
+        for (int i = 0; i < pm->num_rules; i++) {
+            pm->rule_counts[i] += new_rule_counts[i];
+        }
+
+    }
+}
+
 /*
 * Free a polymer from memory.
 * @param    polymer_t   polymer to free.
@@ -159,6 +225,7 @@ void free_polymer(polymer_t *pm)
         free(pm->rules[i]);
     }
     free(pm->rules);
+    free(pm->rule_counts);
     free(pm);
 }
 
@@ -171,7 +238,7 @@ void free_polymer(polymer_t *pm)
 * @param    p_template      pointer to the template buffer
 * @retval   num_rules       number of rules found
 */
-int read_input(char data_file[], char *p_template)
+char* read_input(char data_file[], char *p_template, size_t *template_length)
 {
     FILE *file_handle = fopen(data_file, "r");
     if (file_handle == NULL) {
@@ -182,60 +249,38 @@ int read_input(char data_file[], char *p_template)
 
     // first line is the template
     fgets(p_template, MAX_TEMPLATE * sizeof(char), file_handle);
-    size_t template_length = ftell(file_handle) - 1; // ignore newline
-    p_template[template_length] = '\0';
+    *template_length = ftell(file_handle) - 1; // ignore newline
+    p_template[*template_length] = '\0';
     //printf("Template length %lu bytes\n", template_length);
-
-    polymer_t *p_polymer_t = create_polymer(p_template, (int)template_length);
 
     // get the remaining file size
     fseek(file_handle, 0, SEEK_END);
     size_t file_size = ftell(file_handle);
-    fseek(file_handle, template_length + 1, SEEK_SET);
-
-    //printf("Current Position %lu bytes\n", ftell(file_handle));
-    //printf("File size %lu bytes\n", file_size);
+    fseek(file_handle, *template_length + 1, SEEK_SET);
 
     // get the rest of the input into a buffer
     char *input_buffer = (char *)malloc(file_size * sizeof(char) + 1);
     size_t bytes_read = fread(input_buffer, sizeof(char), file_size, file_handle);
-    if (bytes_read != (file_size - template_length - 1)) {
+    if (bytes_read != (file_size - *template_length - 1)) {
         printf("Error reading input buffer. Expected %lu, read %lu.\n",
-                (file_size - template_length - 1), bytes_read);
+                (file_size - *template_length - 1), bytes_read);
         exit(EXIT_FAILURE);
     }
+
     fclose(file_handle);
+    input_buffer[file_size] = '\0';
 
-    //printf("Read %lu bytes\n", bytes_read);
-    p_polymer_t->rules = (pairrule_t**)malloc(sizeof(pairrule_t*) * 
-            (bytes_read / RULE_SIZE));
-    p_polymer_t->rule_counts = (unsigned *)malloc(sizeof(unsigned*) * 16);
-    char delimeters[] = " ->\n";
-    char *token = NULL;
-    token = strtok(input_buffer, delimeters);
-    while(token != NULL) {
-        char rule_pair[8];
-        strcpy(rule_pair, token);
-        token = strtok(NULL, delimeters);
-        char rule_insertion = token[0];
-        token = strtok(NULL, delimeters);
-        create_rule(p_polymer_t, rule_pair, rule_insertion);
-        p_polymer_t->num_rules++;
-        //printf("%s -> %c\n", rule_pair, rule_insertion);
-    }
-    free(input_buffer);
-
-    link_rules(p_polymer_t);
-    print_polymer(p_polymer_t);
-
-    free_polymer(p_polymer_t);
-    return p_polymer_t->num_rules;
+    return input_buffer;
 }
 
 int main(int argc, char *argv[])
 {
     char template[MAX_TEMPLATE];
-    int num_rules = read_input("data/14test", template);
-    printf("Found %d rules.\n", num_rules);
+    size_t template_length;
+    char *input_buffer = read_input("data/14test", template, &template_length);
+    polymer_t *pm = create_polymer(template, &template_length, input_buffer);
+    grow_polymer(pm, 10);
+    print_polymer(pm);
+    free_polymer(pm);
     return (EXIT_SUCCESS);
 }
