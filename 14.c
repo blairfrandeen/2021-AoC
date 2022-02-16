@@ -22,6 +22,7 @@ NBCCNBBBCBHCB
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <stdint.h>
 
 #define MAX_TEMPLATE 127
 #define MAX_ELEMENTS 26     // only A-Z allowed
@@ -41,11 +42,11 @@ typedef struct pairrule_t {
 typedef struct polymer_t {
     int num_rules;
     pairrule_t **rules;
-    unsigned *rule_counts;
+    uintmax_t *rule_counts;
 
     int num_elements;
     char elements[MAX_ELEMENTS];
-    unsigned element_counts[MAX_ELEMENTS];
+    uintmax_t element_counts[MAX_ELEMENTS];
 
     char template[MAX_TEMPLATE];
 } polymer_t;
@@ -112,18 +113,34 @@ int element_index(char element, polymer_t *p_poly)
 void print_polymer(polymer_t *pm)
 {
     for (int i = 0; i < pm->num_elements; i++) {
-        printf("%c - %dX\n", pm->elements[i], pm->element_counts[i]);
+        printf("%c - %llu\n", pm->elements[i], pm->element_counts[i]);
     }
-    for (int rule_index = 0; rule_index < pm->num_rules; rule_index++) {
-        printf("Rule: %s -> %c (%dX), Children: %s, %s.\n",
-                pm->rules[rule_index]->pair,
-                pm->rules[rule_index]->insertion,
-                pm->rule_counts[rule_index],
-                pm->rules[rule_index]->child1->pair,
-                pm->rules[rule_index]->child2->pair);
-    }
+    //for (int rule_index = 0; rule_index < pm->num_rules; rule_index++) {
+        //printf("Rule: %s -> %c (%dX), Children: %s, %s.\n",
+                //pm->rules[rule_index]->pair,
+                //pm->rules[rule_index]->insertion,
+                //pm->rule_counts[rule_index],
+                //pm->rules[rule_index]->child1->pair,
+                //pm->rules[rule_index]->child2->pair);
+    //}
 }
 
+void element_count_range(polymer_t *pm)
+{
+    uintmax_t max_count = pm->element_counts[0], 
+                  min_count = pm->element_counts[0];
+    for (int i = 1; i < pm->num_elements; i++) {
+        uintmax_t current_element = pm->element_counts[i];
+        if (current_element > max_count) {
+            max_count = current_element;
+        }
+        if (current_element < min_count) {
+            min_count = current_element;
+        }
+    }
+    printf("Min: %llu\nMax: %llu\n", min_count, max_count);
+    printf("Result: %llu\n", (max_count - min_count));
+}
 /*
 * Create a polymer given a template.
 * @param    template        template string
@@ -139,7 +156,7 @@ polymer_t* create_polymer(char template[], size_t *template_length, char *input_
 
 
     pm->rules = (pairrule_t**)malloc(sizeof(pairrule_t*) * MAX_RULES);
-    pm->rule_counts = (unsigned *)malloc(sizeof(unsigned*) * MAX_RULES);
+    pm->rule_counts = (uintmax_t*)malloc(sizeof(uintmax_t*) * MAX_RULES);
     char delimeters[] = " ->\n";
     char *token = NULL;
     token = strtok(input_buffer, delimeters);
@@ -182,14 +199,14 @@ polymer_t* create_polymer(char template[], size_t *template_length, char *input_
 void grow_polymer(polymer_t *pm, int num_steps)
 {
     for (int step = 0; step < num_steps; step++) {
-        unsigned new_element_counts[pm->num_elements];
-        memset(new_element_counts, 0, pm->num_elements * sizeof(unsigned));
-        unsigned new_rule_counts[pm->num_rules];
-        memset(new_rule_counts, 0, pm->num_rules * sizeof(unsigned));
+        uintmax_t new_element_counts[pm->num_elements];
+        memset(new_element_counts, 0, pm->num_elements * sizeof(uintmax_t));
+        uintmax_t new_rule_counts[pm->num_rules];
+        memset(new_rule_counts, 0, pm->num_rules * sizeof(uintmax_t));
 
         for (int rule_index = 0; rule_index < pm->num_rules; rule_index++) {
             pairrule_t *current_rule = pm->rules[rule_index];
-            unsigned num_current_rule = pm->rule_counts[rule_index];
+            uintmax_t num_current_rule = pm->rule_counts[rule_index];
             int new_element_index, new_rule_index;
             if ((new_element_index = element_index(current_rule->insertion, pm)) >= 0) {
                 new_element_counts[new_element_index] += num_current_rule;
@@ -199,10 +216,12 @@ void grow_polymer(polymer_t *pm, int num_steps)
                 new_element_counts[pm->num_elements] = num_current_rule;
                 pm->num_elements++;
             }
-            if ((new_rule_index = find_rule_index(pm, current_rule->child1->pair)) >= 0)
+            if ((new_rule_index = find_rule_index(pm, current_rule->child1->pair)) >= 0) {
                 new_rule_counts[new_rule_index] += num_current_rule;
+            }
             if ((new_rule_index = find_rule_index(pm, current_rule->child2->pair)) >= 0)
                 new_rule_counts[new_rule_index] += num_current_rule;
+            pm->rule_counts[rule_index] = 0;
         }
 
         for (int i = 0; i < pm->num_elements; i++) {
@@ -277,10 +296,11 @@ int main(int argc, char *argv[])
 {
     char template[MAX_TEMPLATE];
     size_t template_length;
-    char *input_buffer = read_input("data/14test", template, &template_length);
+    char *input_buffer = read_input("data/14data", template, &template_length);
     polymer_t *pm = create_polymer(template, &template_length, input_buffer);
-    grow_polymer(pm, 10);
+    grow_polymer(pm, 40);
     print_polymer(pm);
+    element_count_range(pm);
     free_polymer(pm);
     return (EXIT_SUCCESS);
 }
