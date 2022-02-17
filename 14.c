@@ -24,9 +24,9 @@ NBCCNBBBCBHCB
 #include <string.h>
 #include <stdint.h>
 
-#define MAX_TEMPLATE 127
+#define MAX_TEMPLATE 127    // maximum template length
 #define MAX_ELEMENTS 26     // only A-Z allowed
-#define MAX_RULES 255         // number of chars per rules (AB -> C\n)
+#define MAX_RULES 255       // maximum number of rules allowed
 
 /* Each pair rule has three attributes:
    Its name (i.e. "NC")
@@ -39,6 +39,13 @@ typedef struct pairrule_t {
     struct pairrule_t *child1, *child2;
 } pairrule_t;
 
+/* Polymer struct is made up of two dictionaries:
+   1. Pair-rules
+   2. Elements
+   Both dictionaries have the arrays of values,
+   corresponding arrays of value counts, and a count of values.
+   Also includes a template string to start the polymer.
+*/
 typedef struct polymer_t {
     int num_rules;
     pairrule_t **rules;
@@ -51,45 +58,22 @@ typedef struct polymer_t {
     char template[MAX_TEMPLATE];
 } polymer_t;
 
-int find_rule_index(polymer_t *polymer, char pair[])
+/*
+* Find the index of a rule given it's characteristic pair
+*
+* @param    pm      pointer to the polymer
+* @param    pair    element pair that defines the rules
+* @retval   index   index of rule
+* @retval   -1      rule not found.
+*/
+int find_rule_index(char pair[], polymer_t *pm)
 {
-    for (int rule_index = 0; rule_index < polymer->num_rules; rule_index++) {
-        if (!strcmp(pair, polymer->rules[rule_index]->pair)) {
+    for (int rule_index = 0; rule_index < pm->num_rules; rule_index++) {
+        if (!strcmp(pair, pm->rules[rule_index]->pair)) {
             return rule_index;
         }
     }
     return -1;
-}
-
-void create_rule(polymer_t *polymer, char pair[], char insertion)
-{
-    //printf("Creating rule %s...\n", pair);
-    int rule_index = find_rule_index(polymer, pair);
-    if (rule_index >= 0) {
-        polymer->rules[rule_index]->insertion = insertion;
-    } else {
-        pairrule_t *rule = (pairrule_t*)malloc(sizeof(pairrule_t));
-        strcpy(rule->pair, pair);
-        rule->insertion = insertion;
-        rule->child1 = rule->child2 = NULL;
-        polymer->rules[polymer->num_rules] = rule;
-    }
-}
-
-void link_rules(polymer_t *pm)
-{
-    for (int rule_index = 0; rule_index < pm->num_rules; rule_index++) {
-        char child_1[3], child_2[3];
-        child_1[0] = pm->rules[rule_index]->pair[0];
-        child_1[1] = child_2[0] = pm->rules[rule_index]->insertion;
-        child_2[1] = pm->rules[rule_index]->pair[1];
-        child_1[2] = child_2[2] = '\0';
-        pm->rules[rule_index]->child1 = 
-            (struct pairrule_t*)pm->rules[find_rule_index(pm, child_1)];
-        pm->rules[rule_index]->child2 = 
-            (struct pairrule_t*)pm->rules[find_rule_index(pm, child_2)];
-        pm->rule_counts[rule_index] = 0;
-    }
 }
 
 /*
@@ -110,10 +94,42 @@ int element_index(char element, polymer_t *p_poly)
     return -1;
 }
 
+void create_rule(polymer_t *polymer, char pair[], char insertion)
+{
+    //printf("Creating rule %s...\n", pair);
+    int rule_index = find_rule_index(pair, polymer);
+    if (rule_index >= 0) {
+        polymer->rules[rule_index]->insertion = insertion;
+    } else {
+        pairrule_t *rule = (pairrule_t*)malloc(sizeof(pairrule_t));
+        strcpy(rule->pair, pair);
+        rule->insertion = insertion;
+        rule->child1 = rule->child2 = NULL;
+        polymer->rules[polymer->num_rules] = rule;
+    }
+}
+
+void link_rules(polymer_t *pm)
+{
+    for (int rule_index = 0; rule_index < pm->num_rules; rule_index++) {
+        char child_1[3], child_2[3];
+        child_1[0] = pm->rules[rule_index]->pair[0];
+        child_1[1] = child_2[0] = pm->rules[rule_index]->insertion;
+        child_2[1] = pm->rules[rule_index]->pair[1];
+        child_1[2] = child_2[2] = '\0';
+        pm->rules[rule_index]->child1 = 
+            (struct pairrule_t*)pm->rules[find_rule_index(child_1, pm)];
+        pm->rules[rule_index]->child2 = 
+            (struct pairrule_t*)pm->rules[find_rule_index(child_2, pm)];
+        pm->rule_counts[rule_index] = 0;
+    }
+}
+
+
 void print_polymer(polymer_t *pm)
 {
     for (int i = 0; i < pm->num_elements; i++) {
-        printf("%c - %llu\n", pm->elements[i], pm->element_counts[i]);
+        printf("%c - %lu\n", pm->elements[i], pm->element_counts[i]);
     }
     //for (int rule_index = 0; rule_index < pm->num_rules; rule_index++) {
         //printf("Rule: %s -> %c (%dX), Children: %s, %s.\n",
@@ -138,9 +154,10 @@ void element_count_range(polymer_t *pm)
             min_count = current_element;
         }
     }
-    printf("Min: %llu\nMax: %llu\n", min_count, max_count);
-    printf("Result: %llu\n", (max_count - min_count));
+    printf("Min: %lu\nMax: %lu\n", min_count, max_count);
+    printf("Result: %lu\n", (max_count - min_count));
 }
+
 /*
 * Create a polymer given a template.
 * @param    template        template string
@@ -157,7 +174,7 @@ polymer_t* create_polymer(char template[], size_t *template_length, char *input_
 
     pm->rules = (pairrule_t**)malloc(sizeof(pairrule_t*) * MAX_RULES);
     pm->rule_counts = (uintmax_t*)malloc(sizeof(uintmax_t*) * MAX_RULES);
-    char delimeters[] = " ->\n";
+    const char delimeters[] = " ->\n";
     char *token = NULL;
     token = strtok(input_buffer, delimeters);
     while(token != NULL) {
@@ -168,7 +185,6 @@ polymer_t* create_polymer(char template[], size_t *template_length, char *input_
         create_rule(pm, rule_pair, rule_insertion);
         pm->num_rules++;
         token = strtok(NULL, delimeters);
-        //printf("%s -> %c\n", rule_pair, rule_insertion);
     }
     free(input_buffer);
 
@@ -179,7 +195,7 @@ polymer_t* create_polymer(char template[], size_t *template_length, char *input_
         if (template_index < (*template_length - 1)) {
             char next = template[template_index + 1];
             char pair[3] = { element, next, '\0' };
-            pm->rule_counts[find_rule_index(pm, pair)]++;
+            pm->rule_counts[find_rule_index(pair, pm)]++;
         }
 
         int current_index = element_index(element, pm);
@@ -216,10 +232,10 @@ void grow_polymer(polymer_t *pm, int num_steps)
                 new_element_counts[pm->num_elements] = num_current_rule;
                 pm->num_elements++;
             }
-            if ((new_rule_index = find_rule_index(pm, current_rule->child1->pair)) >= 0) {
+            if ((new_rule_index = find_rule_index(current_rule->child1->pair, pm)) >= 0) {
                 new_rule_counts[new_rule_index] += num_current_rule;
             }
-            if ((new_rule_index = find_rule_index(pm, current_rule->child2->pair)) >= 0)
+            if ((new_rule_index = find_rule_index(current_rule->child2->pair, pm)) >= 0)
                 new_rule_counts[new_rule_index] += num_current_rule;
             pm->rule_counts[rule_index] = 0;
         }
@@ -296,7 +312,7 @@ int main(int argc, char *argv[])
 {
     char template[MAX_TEMPLATE];
     size_t template_length;
-    char *input_buffer = read_input("data/14data", template, &template_length);
+    char *input_buffer = read_input("data/14test", template, &template_length);
     polymer_t *pm = create_polymer(template, &template_length, input_buffer);
     grow_polymer(pm, 40);
     print_polymer(pm);
